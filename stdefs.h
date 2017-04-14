@@ -23,9 +23,15 @@ typedef struct inode{
 } inode;
 
 typedef struct inodeTable{
-	table inode[240000];
+	table inode[240000];		// # of inodes is 1% of disk
 } iTable;
 
 
 
 #endif
+
+
+/*
+Diskfile created with command:
+dd if=/dev/zero of=diskfile bs=1024 count=24576
+*//
