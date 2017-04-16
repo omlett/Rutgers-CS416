@@ -91,7 +91,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 			superBlock->block_size = BLOCK_SIZE;
 			superBlock->num_inodes = 500; // Need to do calculations on this
 			superBlock->num_free_blocks = (TOTAL_FS_SIZE / BLOCK_SIZE);// Need to calculate this as well
-			superBlock->index_next_free_block = 2; // not sure about this
+			superBlock->index_next_free_block = 2; // first free block right after superblock
 			superBlock->num_free_inodes = 499; // Check this as well
 			superBlock->index_next_free_inode = 5; // junk data till figure it out
 			superBlock->free_inode_list = 5;
@@ -106,6 +106,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 			}
 			else{
 				log_msg("\nblock_write(0, &superBlock) was successful");
+				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
 			}
 		}
 		else if(readResult > 0){ // first block has been accessed before parse superBlock information
@@ -113,6 +114,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 			int superBlockRead = block_read(0, &superBlockRead);
 			if(superBlockRead > 0){ // superBlock read sucessfully
 				log_msg("block read sucessfully\n");
+				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
 			}
 			else {
 				log_msg("block read failed\n");
