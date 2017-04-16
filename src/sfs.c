@@ -73,9 +73,55 @@ void *sfs_init(struct fuse_conn_info *conn)
 	
 		struct sfs_state* SFS_STATE = SFS_DATA;
 
-		
+		log_msg("\ndisk_open(path=%s)\n", SFS_DATA->diskfile);
+		// Opens disk simply returns if disk already open
 		disk_open((SFS_DATA)->diskfile);
+		
+		char * super = (char *) malloc(BLOCK_SIZE);
 
+// Check if there is a SUPERBLOCK set using block_read
+// Read first block (if set first block is super block
+// Read should return (1) exactly @BLOCK_SIZE when succeeded, or (2) 0 when the requested block has never been touched before, or (3) a negtive value when failed. 
+		int readResult = block_read(0, &super); 
+
+		if(readResult == 0){ // block has never been touched
+			// Create and initialize SBlock
+			sblock * superBlock = (sblock *)malloc(sizeof(sblock));
+			superBlock->fs_size = TOTAL_FS_SIZE;
+			superBlock->block_size = BLOCK_SIZE;
+			superBlock->num_inodes = 500; // Need to do calculations on this
+			superBlock->num_free_blocks = (TOTAL_FS_SIZE / BLOCK_SIZE);// Need to calculate this as well
+			superBlock->index_next_free_block = 2; // not sure about this
+			superBlock->num_free_inodes = 499; // Check this as well
+			superBlock->index_next_free_inode = 5; // junk data till figure it out
+			superBlock->free_inode_list = 5;
+			superBlock->mod_flag = 1;
+			superBlock->root_inode_num = 3; // Inode number for root directory made up for now		
+			// Write the SBlock to to first block in FS using block_write
+			// Write should return exactly @BLOCK_SIZE except on error. 
+			int writeResult = block_write(0, &superBlock);
+			
+			if(writeResult < 0){ //write failed
+				log_msg("\nblock_write(0, &superBlock) failed\n");
+			}
+			else{
+				log_msg("\nblock_write(0, &superBlock) was successful");
+			}
+		}
+		else if(readResult > 0){ // first block has been accessed before parse superBlock information
+			sblock * superBlock;
+			int superBlockRead = block_read(0, &superBlockRead);
+			if(superBlockRead > 0){ // superBlock read sucessfully
+				log_msg("block read sucessfully\n");
+			}
+			else {
+				log_msg("block read failed\n");
+			}
+			
+		}
+
+			
+		
 		// Creates inode table 
 		inodeTable = (inode *) malloc(TOTAL_INODES * sizeof(inode));
 		
@@ -83,10 +129,9 @@ void *sfs_init(struct fuse_conn_info *conn)
 		 int userID = getuid();
    		 int groupID = getegid();
 		
+		 
 
-			inodeTable[0].ino = 0;
-			inodeTable[0].groupID = userID;
-			inodeTable[0].userID = groupID;
+// int block_read(const int block_num, void *buf) first block should be Super Block 
 	
 log_msg("\ninodeTable initalize groupID: %i userID: %i\n", userID, groupID);
 

@@ -10,6 +10,9 @@
 #define _STDEFS_H
 
 #define	TOTAL_INODES	240000
+#define BLOCK_SIZE 512
+
+#define TOTAL_FS_SIZE ((8 + 16) * 1024 * 1024)
 /****************************************************************/
 // Structure Definitions
 /****************************************************************/
@@ -51,7 +54,7 @@ typedef struct inode{
 	// does not contain file path
 } inode;
 
-inode *inodeTable;			// Global inode table
+inode * inodeTable;			// Global inode table
 
 // Superblock to describe filesystem
 // Each UNIX partition usually contains a special block called the superblock. 
@@ -81,7 +84,7 @@ inode *inodeTable;			// Global inode table
  * a modification to the SB
  */
 
-typdef struct sblock {
+typedef struct sblock {
 	int num_inodes;
 	int fs_size;
 	int block_size;
@@ -97,7 +100,7 @@ typdef struct sblock {
 	// magic number?
 	int root_inode_num; // Inode number of root directory
 	// pointer to list of free blocks
-}
+} sblock;
 
 // Not sure if be necessary but bitmap to keep track of blocks as in slide 13 of filesystem 
 // slides
