@@ -35,8 +35,8 @@ typedef struct inode{
 	time_t atime;			// inode access time
 	time_t ctime;			// inode change time
 	time_t mtime;			// inode modification time
-	uid_t userID			// user id
-	gid_t groupID			// group id
+	uid_t userID;			// user id
+	gid_t groupID;			// group id
 } inode;
 
 inode *inodeTable;			// Global inode table
