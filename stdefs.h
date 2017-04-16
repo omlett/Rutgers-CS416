@@ -40,7 +40,22 @@ typedef struct inode{
 } inode;
 
 inode *inodeTable;			// Global inode table
-char initTracker;			// Make sure init doesn't get called more than once 
+
+// Superblock to describe filesystem
+/* Struct
+ * s_list: superblock LL
+ * s_dev: = Device indentifer
+ * s_blocksize = block size in bytes
+ * s_dir = dirty (modified) flag
+ * s_op Superblock methods
+ * s_lock = superblock semaphore
+ * s_inodes = list of all inodes
+ * s_io = inodes waiting for write
+ * s_files = list of file objects
+ */
+typdef struct sblock {
+	int num_nodes;
+	int 
 
 
 
