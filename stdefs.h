@@ -10,11 +10,11 @@
 #define _STDEFS_H
 
 
-#define BLOCK_SIZE 512
 #define NUM_INODE_BLOCKS 64
-#define	TOTAL_INODES (BLOCK_SIZE * NUM_INODE_BLOCKS)/sizeof(inode)
-#define TOTAL_FS_SIZE ((8 + 16) * 1024 * 1024)
+#define	TOTAL_INODES ((BLOCK_SIZE * NUM_INODE_BLOCKS)/sizeof(inode))
+#define TOTAL_FS_SIZE (8 + 16) * 1024 * 1024
 #define TOTAL_BLOCKS TOTAL_FS_SIZE/BLOCK_SIZE
+#define NUM_RESERVED_BLOCKS NUM_INODE_BLOCKS + 4
 /****************************************************************/
 // Structure Definitions
 /****************************************************************/

@@ -13,7 +13,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <fcntl.h> 
 #include <fuse.h>
 #include <libgen.h>
 #include <limits.h>
@@ -30,7 +30,6 @@
 
 #include "log.h"
 
-#define NUM_RESERVED_BLOCKS (4 + NUM_INODE_BLOCKS)
 
 
 /* Helper file for creating bitmap */
@@ -90,6 +89,10 @@ int testBit(int * bitmap, int bitK){
  * Introduced in version 2.3
  * Changed in version 2.6
  */
+
+ int debug = 0;
+ int debugOverwite =0;
+
 void *sfs_init(struct fuse_conn_info *conn)
 {
     fprintf(stderr, "in bb-init\n");
@@ -98,7 +101,19 @@ void *sfs_init(struct fuse_conn_info *conn)
     log_conn(conn);
     log_fuse_context(fuse_get_context());
 
+if(debug){
 
+    disk_open(SFS_DATA->diskfile);
+    //void *test="abcd";
+    //int output = block_read(0, test);
+    //int output=block_write(0,test);
+    //log_msg("Block read :");
+    //log_msg(output);
+    disk_close();
+    log_msg("Testing- exiting sfs_init()\n");
+    return SFS_DATA;
+
+}
 //    return SFS_DATA;
 //    SFS_DATA defined in /src/params.h
 //    #define SFS_DATA ((struct sfs_state *) fuse_get_context()->private_data) is in params.h so its set on mount
@@ -111,33 +126,38 @@ void *sfs_init(struct fuse_conn_info *conn)
 
 //	Rough Draft - How do we write this to the disk?
 //	ToDo:
-//		- Assign shit to /root
+//		- Assign shit to /rootS
 //		- 
 	
-		struct sfs_state* SFS_STATE = SFS_DATA;
 
-		log_msg("\ndisk_open(path=%s)2222\n", SFS_DATA->diskfile);
+		log_msg("\ndisk_open(path=%s) TOTAL_FS_SIZE: %i NUMI: %i\n", SFS_DATA->diskfile, TOTAL_FS_SIZE, TOTAL_INODES);
 		// Opens disk simply returns if disk already open
-		disk_open((SFS_DATA)->diskfile);
+		disk_open(SFS_DATA->diskfile);
 
     //log_msg("\nGod dammit\n", SFS_DATA->diskfile);
 
 		
 		char * super = (char *) malloc(BLOCK_SIZE);
 
+     struct stat *statbuf = (struct stat*) malloc(sizeof(struct stat));
+    int in = lstat((SFS_DATA)->diskfile,statbuf);
+    log_msg("\nVIRTUAL DISK FILE STAT: %s\n", (SFS_DATA)->diskfile);
+   // log_stat(statbuf);
+
 // Check if there is a SUPERBLOCK set using block_read
 // Read first block (if set first block is super block
 // Read should return (1) exactly @BLOCK_SIZE when succeeded, or (2) 0 when the requested block has never been touched before, or (3) a negtive value when failed. 
-		int readResult = block_read(0, &super); 
-    printf("Makes it here\n");
-
-		if(readResult == 0){ // block has never been touched
+		int readResult = block_read(1, &super); 
+    
+     log_msg("\nRead Result %in", readResult);
+	if(readResult == 0 || debugOverwite == 1){ // block has never been touched
 			// Create and initialize SBlock
       int * blockFreeList = (int *)malloc(TOTAL_BLOCKS/sizeof(int));
       sblock * superBlock = (sblock *)malloc(sizeof(sblock));
 			superBlock->fs_size = TOTAL_FS_SIZE;
+      log_msg("TOTAL_FS_SIZE: %i\n", superBlock->fs_size);
 			superBlock->block_size = BLOCK_SIZE;
-			superBlock->num_inodes = TOTAL_INODES  ; 
+			superBlock->num_inodes = TOTAL_INODES;
       superBlock->num_blocks = TOTAL_BLOCKS;
 			superBlock->num_free_blocks =  TOTAL_BLOCKS - NUM_RESERVED_BLOCKS;
 			superBlock->index_next_free_block = TOTAL_BLOCKS - superBlock->num_free_blocks - 1; // first free block right after superblock
@@ -150,9 +170,8 @@ void *sfs_init(struct fuse_conn_info *conn)
       // Write the SBlock to to first block in FS using block_write
 			// Write should return exactly @BLOCK_SIZE except on error. 
 
-
-      int writeResult = block_write(1, &superBlock);
-      
+      int writeResult = block_write(1, superBlock);
+     
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &superBlock) failed\n");
         exit(0);
@@ -161,6 +180,8 @@ void *sfs_init(struct fuse_conn_info *conn)
         log_msg("\nblock_write(0, &superBlock) was successful");
         log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
       }
+
+      free(superBlock);
 			
       int * inodeBitmap = (int *) malloc(TOTAL_INODES/sizeof(int));
       setAndClearBit(inodeBitmap, 0); // inode 0 = root so set it as used;
@@ -175,7 +196,7 @@ void *sfs_init(struct fuse_conn_info *conn)
         //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
       }
 
-      writeResult = block_write(2, &inodeBitmap);
+      writeResult = block_write(2, inodeBitmap);
       free(inodeBitmap);
 
       int * blockBitmap = (int *) malloc(TOTAL_BLOCKS/sizeof(int));
@@ -186,7 +207,7 @@ void *sfs_init(struct fuse_conn_info *conn)
            setAndClearBit(blockBitmap, i);
       }
 
-      writeResult = block_write(3, &inodeBitmap);
+      writeResult = block_write(3, blockBitmap);
 
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &blockBitmap) failed\n");
@@ -219,7 +240,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       char * buffer = malloc(BLOCK_SIZE);
      
  
-      writeResult = block_write(i, &inodeTable);
+      writeResult = block_write(4, inodeTable);
 
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &inodeTable) failed\n");
@@ -231,17 +252,16 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       
-      
-      
-
-		}
+    }
 		else if(readResult > 0){ // first block has been accessed before parse superBlock information
-			sblock * superBlock = malloc(sizeof(superBlock));
-			int superBlockRead = block_read(0, &superBlock);
+			char* superBlock = (char *)malloc(BLOCK_SIZE);
+			sblock * test = (sblock *)superBlock;
+      int superBlockRead = block_read(1, superBlock);
+
+      log_msg("superBlockRead1: %i Block SIze: %i\n", superBlockRead, BLOCK_SIZE);
 			if(superBlockRead > 0){ // superBlock read sucessfully
 				log_msg("FS Contains Valid Super Block\n");
-
-
+       log_msg("SuperBlock: TOTAL_FS_SIZE: %i\n NumI: %i \n", test->fs_size, test->num_inodes);
 
 				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
 			}
@@ -256,8 +276,18 @@ void *sfs_init(struct fuse_conn_info *conn)
     }
 
 
- log_msg("Rile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_STATE->diskfile);
-return SFS_STATE;
+ log_msg("Rile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_DATA->diskfile);
+
+   in = lstat((SFS_DATA)->diskfile,statbuf);
+    log_msg("\nVIRTUAL DISK FILE STAT222: %s\n", (SFS_DATA)->diskfile);
+    log_stat(statbuf);
+
+
+  //log_conn(conn);
+  //log_fuse_context(fuse_get_context());
+  //disk_close(SFS_DATA->diskfile);
+
+return SFS_DATA;
 	
 }
 
@@ -285,7 +315,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     char fpath[PATH_MAX];
     
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
-	  path, statbuf);
+    path, statbuf);
     
     return retstat;
 }
@@ -306,7 +336,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
-	    path, mode, fi);
+      path, mode, fi);
     
     
     return retstat;
@@ -336,7 +366,7 @@ int sfs_open(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_open(path\"%s\", fi=0x%08x)\n",
-	    path, fi);
+      path, fi);
 
     
     return retstat;
@@ -360,7 +390,7 @@ int sfs_release(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_release(path=\"%s\", fi=0x%08x)\n",
-	  path, fi);
+    path, fi);
     
 
     return retstat;
@@ -381,7 +411,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 {
     int retstat = 0;
     log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
-	    path, buf, size, offset, fi);
+      path, buf, size, offset, fi);
 
    
     return retstat;
@@ -396,11 +426,11 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
  * Changed in version 2.2
  */
 int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
-	     struct fuse_file_info *fi)
+       struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_write(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
-	    path, buf, size, offset, fi);
+      path, buf, size, offset, fi);
     
     
     return retstat;
@@ -412,7 +442,7 @@ int sfs_mkdir(const char *path, mode_t mode)
 {
     int retstat = 0;
     log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",
-	    path, mode);
+      path, mode);
    
     
     return retstat;
@@ -424,7 +454,7 @@ int sfs_rmdir(const char *path)
 {
     int retstat = 0;
     log_msg("sfs_rmdir(path=\"%s\")\n",
-	    path);
+      path);
     
     
     return retstat;
@@ -442,7 +472,7 @@ int sfs_opendir(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_opendir(path=\"%s\", fi=0x%08x)\n",
-	  path, fi);
+    path, fi);
     
     
     return retstat;
@@ -470,7 +500,7 @@ int sfs_opendir(const char *path, struct fuse_file_info *fi)
  * Introduced in version 2.3
  */
 int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
-	       struct fuse_file_info *fi)
+         struct fuse_file_info *fi)
 {
     int retstat = 0;
     
@@ -523,12 +553,12 @@ int main(int argc, char *argv[])
     
     // sanity checking on the command line
     if ((argc < 3) || (argv[argc-2][0] == '-') || (argv[argc-1][0] == '-'))
-	sfs_usage();
+  sfs_usage();
 
     sfs_data = malloc(sizeof(struct sfs_state));
     if (sfs_data == NULL) {
-	perror("main calloc");
-	abort();
+  perror("main calloc");
+  abort();
     }
 
     // Pull the diskfile and save it in internal data
