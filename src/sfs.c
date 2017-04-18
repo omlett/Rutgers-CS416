@@ -30,7 +30,7 @@
 
 #include "log.h"
 
-
+#define NUM_RESERVED_BLOCKS (4 + NUM_INODE_BLOCKS)
 ///////////////////////////////////////////////////////////
 //
 // Prototypes for all these functions, and the C-style comments,
@@ -86,20 +86,28 @@ void *sfs_init(struct fuse_conn_info *conn)
 
 		if(readResult == 0){ // block has never been touched
 			// Create and initialize SBlock
-			sblock * superBlock = (sblock *)malloc(sizeof(sblock));
+      int * blockFreeList = (int *)malloc(TOTAL_BLOCKS/sizeof(int));
+      sblock * superBlock = (sblock *)malloc(sizeof(sblock));
 			superBlock->fs_size = TOTAL_FS_SIZE;
 			superBlock->block_size = BLOCK_SIZE;
-			superBlock->num_inodes = 500; // Need to do calculations on this
-			superBlock->num_free_blocks = (TOTAL_FS_SIZE / BLOCK_SIZE);// Need to calculate this as well
-			superBlock->index_next_free_block = 2; // first free block right after superblock
-			superBlock->num_free_inodes = 499; // Check this as well
-			superBlock->index_next_free_inode = 5; // junk data till figure it out
-			superBlock->free_inode_list = 5;
+			superBlock->num_inodes = TOTAL_INODES  ; 
+      superBlock->num_blocks = TOTAL_BLOCKS;
+			superBlock->num_free_blocks =  TOTAL_BLOCKS - NUM_RESERVED_BLOCKS;
+			superBlock->index_next_free_block = TOTAL_BLOCKS - superBlock->num_free_blocks - 1; // first free block right after superblock
+      superBlock->free_block_list = NULL; // Not sure if should keep this 
+			superBlock->num_free_inodes = TOTAL_INODES - 1; // ALl inodes free except first one (which will be set to root)
+			superBlock->index_next_free_inode = 1; // First free inode should be root
+			superBlock->free_inode_list = NULL; // Not sure if will keeep 
+      superBlock->atime = NULL;
 			superBlock->mod_flag = 1;
-			superBlock->root_inode_num = 3; // Inode number for root directory made up for now		
-			// Write the SBlock to to first block in FS using block_write
+			superBlock->root_inode_num = 0; // Inode number for root directory made up for now		
+			
+      // Write the SBlock to to first block in FS using block_write
 			// Write should return exactly @BLOCK_SIZE except on error. 
-			int writeResult = block_write(0, &superBlock);
+			
+      (int *) malloc(TOTAL_INODES/sizeof(int)); 
+
+      int writeResult = block_write(0, &superBlock);
 			
 			if(writeResult < 0){ //write failed
 				log_msg("\nblock_write(0, &superBlock) failed\n");

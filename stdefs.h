@@ -9,10 +9,12 @@
 #ifndef _STDEFS_H
 #define _STDEFS_H
 
-#define	TOTAL_INODES	240000
-#define BLOCK_SIZE 512
 
+#define BLOCK_SIZE 4096
+#define NUM_INODE_BLOCKS 64
+#define	TOTAL_INODES (BLOCK_SIZE * NUM_INODE_BLOCKS)/sizeof(inode)
 #define TOTAL_FS_SIZE ((8 + 16) * 1024 * 1024)
+#define TOTAL_BLOCKS TOTAL_FS_SIZE/BLOCK_SIZE
 /****************************************************************/
 // Structure Definitions
 /****************************************************************/
@@ -40,17 +42,17 @@
  * permissions, number of links to the file, size, and block pointers 
  */
 typedef struct inode{
-	short iType;			// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
-	int ino;				// inode number
-	long int size;			// data block size (bytes) | 0 = free | Around 4 GB
-	int fileMode;			// Permissions
-	time_t atime;			// inode access time
-	time_t ctime;			// inode change time
-	time_t mtime;			// inode modification time
-	uid_t userID;			// user id
-	gid_t groupID;			// group id
-	// number of links (alias)
-	// direct pointers to the datablocks for the file
+	char iType;							// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
+	int ino;							// inode number
+	long int size;						// data block size (bytes) | 0 = free | Around 4 GB
+	//int fileMode;						// Permissions (Dont think we need to worry about this)
+	time_t atime;						// inode access time
+	time_t ctime;						// inode change time
+	time_t mtime;						// inode modification time
+	uid_t userID;						// user id
+	gid_t groupID;						// group id
+	void * directBlockPtr [10];			// 10 direct pointers to the datablocks for the file
+	void * dIndirectBlockPtr;			// Single Doubly indirect block pointer
 	// does not contain file path
 } inode;
 
@@ -85,15 +87,16 @@ inode * inodeTable;			// Global inode table
  */
 
 typedef struct sblock {
-	int num_inodes;
-	int fs_size;
-	int block_size;
-	int num_free_blocks;
-	int index_next_free_block;
-	int num_free_inodes;
-	int index_next_free_inode;
-	int free_inode_list;
-	int mod_flag;
+	int num_inodes;							// Number inodes in the system
+	int fs_size;							// Size of File System (Ours in 24 MB)
+	int block_size;							// Systems blocksize (512 for Standard UNIX) .. PAGE = 8 Blocks
+	int num_free_blocks;					// Number of free blocks available
+	int index_next_free_block;				
+	void * free_block_list;
+	int num_free_inodes;					// Number of free inodes in file system
+	int index_next_free_inode;				// Index of the free inode
+	int free_inode_list;					// 
+	char mod_flag;
 	//list of free and allocated blocks
     // name of parition
 	time_t atime; // last modified time
