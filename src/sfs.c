@@ -34,23 +34,26 @@
 
 /* Helper file for creating bitmap */
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
-
+int testBit(int * bitmap, int bitK);
+void setAndClearBit(int * bitmap, int bitK);
 //Need to add to make file
 // Combined set and clear. If bit given in K, cleark that bit. Else set that bit
-void setAndClearBit(int * bitmap, int bitK){
+void setBit(int * bitmap, int bitK){
   
   int i = abs(bitK/32);
   int pos = abs(bitK%32);
   unsigned int flag = 1;
+  bitmap[i] | flag;
+  
+}
 
-  if(bitK < 0){
+void clearBit(int * bitmap, int bitK){
+
+  int i = abs(bitK/32);
+  int pos = abs(bitK%32);
+  unsigned int flag = 1;
     flag = ~flag;
     bitmap[i] = bitmap[i] & flag;
-  }
-  else{
-    i *= -1;
-    bitmap[i] | flag;
-  }
   
 }
 
@@ -93,27 +96,24 @@ int testBit(int * bitmap, int bitK){
  int debug = 0;
  int debugOverwite =0;
 
-void *sfs_init(struct fuse_conn_info *conn)
-{
-    fprintf(stderr, "in bb-init\n");
+void *sfs_init(struct fuse_conn_info *conn){
     log_msg("\nsfs_ini1t()\n");
-    
     log_conn(conn);
     log_fuse_context(fuse_get_context());
 
-if(debug){
+    if(debug){
 
-    disk_open(SFS_DATA->diskfile);
-    //void *test="abcd";
-    //int output = block_read(0, test);
-    //int output=block_write(0,test);
-    //log_msg("Block read :");
-    //log_msg(output);
-    disk_close();
-    log_msg("Testing- exiting sfs_init()\n");
-    return SFS_DATA;
+        disk_open(SFS_DATA->diskfile);
+        //void *test="abcd";
+        //int output = block_read(0, test);
+        //int output=block_write(0,test);
+        //log_msg("Block read :");
+        //log_msg(output);
+        disk_close();
+        log_msg("Testing- exiting sfs_init()\n");
+        return SFS_DATA;
 
-}
+    }
 //    return SFS_DATA;
 //    SFS_DATA defined in /src/params.h
 //    #define SFS_DATA ((struct sfs_state *) fuse_get_context()->private_data) is in params.h so its set on mount
@@ -130,32 +130,32 @@ if(debug){
 //		- 
 	
 
-		log_msg("\ndisk_open(path=%s) TOTAL_FS_SIZE: %i NUMI: %i\n", SFS_DATA->diskfile, TOTAL_FS_SIZE, TOTAL_INODES);
+		log_msg("\ndisk_open(path=%s) TOTAL_FS_SIZE: %i\n", SFS_DATA->diskfile, TOTAL_FS_SIZE);
 		// Opens disk simply returns if disk already open
 		disk_open(SFS_DATA->diskfile);
 
     //log_msg("\nGod dammit\n", SFS_DATA->diskfile);
 
 		
-		char * super = (char *) malloc(BLOCK_SIZE);
-
-     struct stat *statbuf = (struct stat*) malloc(sizeof(struct stat));
-    int in = lstat((SFS_DATA)->diskfile,statbuf);
-    log_msg("\nVIRTUAL DISK FILE STAT: %s\n", (SFS_DATA)->diskfile);
-   // log_stat(statbuf);
-
-// Check if there is a SUPERBLOCK set using block_read
+		char * buffer = (char *) malloc(BLOCK_SIZE);
+    if(debug){
+      struct stat *statbuf = (struct stat*) malloc(sizeof(struct stat));
+      int in = lstat((SFS_DATA)->diskfile,statbuf);
+      log_msg("\nVIRTUAL DISK FILE STAT: %s\n", (SFS_DATA)->diskfile);
+     // log_stat(statbuf);
+      fprintf(stderr, "in bb-init2\n");
+    }
+  // Check if there is a SUPERBLOCK set using block_read
 // Read first block (if set first block is super block
 // Read should return (1) exactly @BLOCK_SIZE when succeeded, or (2) 0 when the requested block has never been touched before, or (3) a negtive value when failed. 
-		int readResult = block_read(1, &super); 
-    
-     log_msg("\nRead Result %in", readResult);
+	int readResult = block_read(1, buffer); 
+  log_msg("\nRead Result %in", readResult);
+
 	if(readResult == 0 || debugOverwite == 1){ // block has never been touched
 			// Create and initialize SBlock
-      int * blockFreeList = (int *)malloc(TOTAL_BLOCKS/sizeof(int));
+      //int * blockFreeList = (int *)malloc(TOTAL_BLOCKS/sizeof(int));
       sblock * superBlock = (sblock *)malloc(sizeof(sblock));
 			superBlock->fs_size = TOTAL_FS_SIZE;
-      log_msg("TOTAL_FS_SIZE: %i\n", superBlock->fs_size);
 			superBlock->block_size = BLOCK_SIZE;
 			superBlock->num_inodes = TOTAL_INODES;
       superBlock->num_blocks = TOTAL_BLOCKS;
@@ -165,7 +165,17 @@ if(debug){
 			superBlock->num_free_inodes = TOTAL_INODES - 1; // ALl inodes free except first one (which will be set to root)
 			superBlock->index_next_free_inode = 1; // First free inode should be root
 			superBlock->free_inode_list = NULL; // Not sure if will keeep 
-			superBlock->root_inode_num = 0; // Inode number for root directory made up for now		
+			superBlock->root_inode_num = 0; // Inode number for root directory made up for now	
+
+      if(debug){
+        log_msg("TOTAL_FS_SIZE: %i\n", superBlock->fs_size);
+        log_msg("BLOCK_SIZE: %i\n", superBlock->block_size);
+        log_msg("NUM_INODES: %i\n", superBlock->num_inodes);
+        log_msg("TOTAL_BLOCKS: %i\n", superBlock->num_blocks);
+        log_msg("NUM_FREE_BLOCKS: %i\n", superBlock->num_free_blocks);
+        log_msg("INDEX_NEXT_FREE_BLOCK: %i\n", superBlock->index_next_free_block);
+        log_msg("ROOT_INODE_NUM: %i\n", superBlock->root_inode_num);
+      }	
 			
       // Write the SBlock to to first block in FS using block_write
 			// Write should return exactly @BLOCK_SIZE except on error. 
@@ -183,8 +193,8 @@ if(debug){
 
       free(superBlock);
 			
-      int * inodeBitmap = (int *) malloc(TOTAL_INODES/sizeof(int));
-      setAndClearBit(inodeBitmap, 0); // inode 0 = root so set it as used;
+      int inodeBitmap [TOTAL_INODES/sizeof(int)];
+      setBit(inodeBitmap, 0); // inode 0 = root so set it as used;
   
       
       if(writeResult < 0){ //write failed
@@ -197,14 +207,13 @@ if(debug){
       }
 
       writeResult = block_write(2, inodeBitmap);
-      free(inodeBitmap);
 
-      int * blockBitmap = (int *) malloc(TOTAL_BLOCKS/sizeof(int));
-      
+      int blockBitmap[TOTAL_BLOCKS/sizeof(int)];
+           
       int i= 0;
 
       for(; i < superBlock->index_next_free_block; i++){
-           setAndClearBit(blockBitmap, i);
+           setBit(blockBitmap, i);
       }
 
       writeResult = block_write(3, blockBitmap);
@@ -218,25 +227,24 @@ if(debug){
         //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
       }
     
-      free(blockBitmap);
-
-      inode * inodeTable = malloc(sizeof(inode) * TOTAL_INODES);
-      
+      inode inodeTable[TOTAL_INODES];
       i = 0;
 
       for(; i< TOTAL_INODES; i++){
         inodeTable[i].iNum = i;            
       }
 
-      inodeTable[0].iType = 'd';
+      inodeTable[0].iType = 'r';
       inodeTable[0].size = 0; 
       inodeTable[0].atime = time(&(inodeTable[0].atime));
       inodeTable[0].ctime = time(&(inodeTable[0].ctime));
-      inodeTable[0].mtime = (&(inodeTable[0].mtime));
+      inodeTable[0].mtime = time(&(inodeTable[0].mtime));
       inodeTable[0].groupID = getegid();
       inodeTable[0].userID = getuid();
 
       i=4;
+
+      fprintf(stderr, "in bb-init3\n");
       char * buffer = malloc(BLOCK_SIZE);
      
  
@@ -251,7 +259,7 @@ if(debug){
         //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
       }
 
-      
+     
     }
 		else if(readResult > 0){ // first block has been accessed before parse superBlock information
 			char* superBlock = (char *)malloc(BLOCK_SIZE);
@@ -261,8 +269,7 @@ if(debug){
       log_msg("superBlockRead1: %i Block SIze: %i\n", superBlockRead, BLOCK_SIZE);
 			if(superBlockRead > 0){ // superBlock read sucessfully
 				log_msg("FS Contains Valid Super Block\n");
-       log_msg("SuperBlock: TOTAL_FS_SIZE: %i\n NumI: %i \n", test->fs_size, test->num_inodes);
-
+        log_msg("SuperBlock: TOTAL_FS_SIZE: %i\n NumI: %i \n", test->fs_size, test->num_inodes);
 				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
 			}
 			else {
@@ -278,18 +285,18 @@ if(debug){
 
  log_msg("Rile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_DATA->diskfile);
 
-   in = lstat((SFS_DATA)->diskfile,statbuf);
-    log_msg("\nVIRTUAL DISK FILE STAT222: %s\n", (SFS_DATA)->diskfile);
-    log_stat(statbuf);
 
+   fprintf(stderr, "End of init\n");
 
   //log_conn(conn);
   //log_fuse_context(fuse_get_context());
   //disk_close(SFS_DATA->diskfile);
+  disk_close(SFS_DATA->diskfile);
 
-return SFS_DATA;
+  return SFS_DATA;
 	
 }
+
 
 /**
  * Clean up filesystem
@@ -313,6 +320,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
     char fpath[PATH_MAX];
+       fprintf(stderr, "in getatt\n");
     
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
     path, statbuf);
@@ -572,6 +580,7 @@ int main(int argc, char *argv[])
     // turn over control to fuse
     fprintf(stderr, "about to call fuse_main, %s \n", sfs_data->diskfile);
     fuse_stat = fuse_main(argc, argv, &sfs_oper, sfs_data);
+       fprintf(stderr, "fuse_main returned \n");
     fprintf(stderr, "fuse_main returned %d\n", fuse_stat);
     
     return fuse_stat;
