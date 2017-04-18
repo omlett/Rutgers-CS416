@@ -10,7 +10,7 @@
 #define _STDEFS_H
 
 
-#define BLOCK_SIZE 4096
+#define BLOCK_SIZE 512
 #define NUM_INODE_BLOCKS 64
 #define	TOTAL_INODES (BLOCK_SIZE * NUM_INODE_BLOCKS)/sizeof(inode)
 #define TOTAL_FS_SIZE ((8 + 16) * 1024 * 1024)
@@ -43,7 +43,7 @@
  */
 typedef struct inode{
 	char iType;							// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
-	int ino;							// inode number
+	int iNum;							// inode number
 	long int size;						// data block size (bytes) | 0 = free | Around 4 GB
 	//int fileMode;						// Permissions (Dont think we need to worry about this)
 	time_t atime;						// inode access time
@@ -51,8 +51,9 @@ typedef struct inode{
 	time_t mtime;						// inode modification time
 	uid_t userID;						// user id
 	gid_t groupID;						// group id
-	void * directBlockPtr [10];			// 10 direct pointers to the datablocks for the file
-	void * dIndirectBlockPtr;			// Single Doubly indirect block pointer
+	int directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
+	int dIndirectBlockPtr;			// Single Doubly indirect block pointer
+	int bitPos;
 	// does not contain file path
 } inode;
 
@@ -87,22 +88,22 @@ inode * inodeTable;			// Global inode table
  */
 
 typedef struct sblock {
-	int num_inodes;							// Number inodes in the system
-	int fs_size;							// Size of File System (Ours in 24 MB)
-	int block_size;							// Systems blocksize (512 for Standard UNIX) .. PAGE = 8 Blocks
-	int num_free_blocks;					// Number of free blocks available
-	int index_next_free_block;				
-	void * free_block_list;
-	int num_free_inodes;					// Number of free inodes in file system
-	int index_next_free_inode;				// Index of the free inode
-	int free_inode_list;					// 
-	char mod_flag;
-	//list of free and allocated blocks
-    // name of parition
-	time_t atime; // last modified time
+	unsigned long fs_size;							// Size of File System (Ours in 24 MB)
+	unsigned int num_inodes;						// Number inodes in the system
+	unsigned int num_blocks;						// Number of total blocks
+	unsigned int num_r_blocks;						// Number of reserved blocks (Boot, Super, InondeBitMap, DataBitMap, Inodetable)
+	unsigned int first_data_block;
+	unsigned long block_size;							// Systems blocksize (512 for Standard UNIX) .. PAGE = 8 Blocks
+	unsigned char dirtyFlag;
+	unsigned int num_free_blocks;				// Number of free blocks available (TOTAL - RESERVED) Starting
+	unsigned int num_free_inodes;					// TOTAL - 1 (root)
+	int index_next_free_block;						// TOAL BLOCKS - RESERVED  1				
+	int * free_block_list;
+	int * free_inode_list;										// Number of free inodes in file system
+	int index_next_free_inode;						// Index of the free inode
 	// magic number?
 	int root_inode_num; // Inode number of root directory
-	// pointer to list of free blocks
+
 } sblock;
 
 // Not sure if be necessary but bitmap to keep track of blocks as in slide 13 of filesystem 

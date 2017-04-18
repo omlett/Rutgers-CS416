@@ -31,6 +31,49 @@
 #include "log.h"
 
 #define NUM_RESERVED_BLOCKS (4 + NUM_INODE_BLOCKS)
+
+
+/* Helper file for creating bitmap */
+//http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
+
+//Need to add to make file
+// Combined set and clear. If bit given in K, cleark that bit. Else set that bit
+void setAndClearBit(int * bitmap, int bitK){
+  
+  int i = abs(bitK/32);
+  int pos = abs(bitK%32);
+  unsigned int flag = 1;
+
+  if(bitK < 0){
+    flag = ~flag;
+    bitmap[i] = bitmap[i] & flag;
+  }
+  else{
+    i *= -1;
+    bitmap[i] | flag;
+  }
+  
+}
+
+int testBit(int * bitmap, int bitK){
+    int i = bitK/32;
+      int pos = bitK%32;
+
+      unsigned int flag = 1;  
+
+      flag = flag << pos;     
+
+      if ( bitmap[i] & flag ){
+        return 1;
+      }     
+         
+      else{
+        return 0;
+      }
+
+}
+
+
 ///////////////////////////////////////////////////////////
 //
 // Prototypes for all these functions, and the C-style comments,
@@ -73,9 +116,12 @@ void *sfs_init(struct fuse_conn_info *conn)
 	
 		struct sfs_state* SFS_STATE = SFS_DATA;
 
-		log_msg("\ndisk_open(path=%s)\n", SFS_DATA->diskfile);
+		log_msg("\ndisk_open(path=%s)2222\n", SFS_DATA->diskfile);
 		// Opens disk simply returns if disk already open
 		disk_open((SFS_DATA)->diskfile);
+
+    //log_msg("\nGod dammit\n", SFS_DATA->diskfile);
+
 		
 		char * super = (char *) malloc(BLOCK_SIZE);
 
@@ -83,6 +129,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 // Read first block (if set first block is super block
 // Read should return (1) exactly @BLOCK_SIZE when succeeded, or (2) 0 when the requested block has never been touched before, or (3) a negtive value when failed. 
 		int readResult = block_read(0, &super); 
+    printf("Makes it here\n");
 
 		if(readResult == 0){ // block has never been touched
 			// Create and initialize SBlock
@@ -98,30 +145,104 @@ void *sfs_init(struct fuse_conn_info *conn)
 			superBlock->num_free_inodes = TOTAL_INODES - 1; // ALl inodes free except first one (which will be set to root)
 			superBlock->index_next_free_inode = 1; // First free inode should be root
 			superBlock->free_inode_list = NULL; // Not sure if will keeep 
-      superBlock->atime = NULL;
-			superBlock->mod_flag = 1;
 			superBlock->root_inode_num = 0; // Inode number for root directory made up for now		
 			
       // Write the SBlock to to first block in FS using block_write
 			// Write should return exactly @BLOCK_SIZE except on error. 
-			
-      (int *) malloc(TOTAL_INODES/sizeof(int)); 
 
-      int writeResult = block_write(0, &superBlock);
+
+      int writeResult = block_write(1, &superBlock);
+      
+      if(writeResult < 0){ //write failed
+        log_msg("\nblock_write(0, &superBlock) failed\n");
+        exit(0);
+      }
+      else{
+        log_msg("\nblock_write(0, &superBlock) was successful");
+        log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
+      }
 			
-			if(writeResult < 0){ //write failed
-				log_msg("\nblock_write(0, &superBlock) failed\n");
-			}
-			else{
-				log_msg("\nblock_write(0, &superBlock) was successful");
-				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
-			}
+      int * inodeBitmap = (int *) malloc(TOTAL_INODES/sizeof(int));
+      setAndClearBit(inodeBitmap, 0); // inode 0 = root so set it as used;
+  
+      
+      if(writeResult < 0){ //write failed
+        log_msg("\nblock_write(0, &inodeBitmapk) failed\n");
+        exit(0);
+      }
+      else{
+        log_msg("\nblock_write(0, &inodeBitmap) was successful");
+        //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
+      }
+
+      writeResult = block_write(2, &inodeBitmap);
+      free(inodeBitmap);
+
+      int * blockBitmap = (int *) malloc(TOTAL_BLOCKS/sizeof(int));
+      
+      int i= 0;
+
+      for(; i < superBlock->index_next_free_block; i++){
+           setAndClearBit(blockBitmap, i);
+      }
+
+      writeResult = block_write(3, &inodeBitmap);
+
+      if(writeResult < 0){ //write failed
+        log_msg("\nblock_write(0, &blockBitmap) failed\n");
+        exit(0);
+      }
+      else{
+        log_msg("\nblock_write(0, &blockBitmap) was successful");
+        //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
+      }
+    
+      free(blockBitmap);
+
+      inode * inodeTable = malloc(sizeof(inode) * TOTAL_INODES);
+      
+      i = 0;
+
+      for(; i< TOTAL_INODES; i++){
+        inodeTable[i].iNum = i;            
+      }
+
+      inodeTable[0].iType = 'd';
+      inodeTable[0].size = 0; 
+      inodeTable[0].atime = time(&(inodeTable[0].atime));
+      inodeTable[0].ctime = time(&(inodeTable[0].ctime));
+      inodeTable[0].mtime = (&(inodeTable[0].mtime));
+      inodeTable[0].groupID = getegid();
+      inodeTable[0].userID = getuid();
+
+      i=4;
+      char * buffer = malloc(BLOCK_SIZE);
+     
+ 
+      writeResult = block_write(i, &inodeTable);
+
+      if(writeResult < 0){ //write failed
+        log_msg("\nblock_write(0, &inodeTable) failed\n");
+        exit(0);
+      }
+      else{
+        log_msg("\nblock_write(0, &inoodeTable) was successful");
+        //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
+      }
+
+      
+      
+      
+
 		}
 		else if(readResult > 0){ // first block has been accessed before parse superBlock information
-			sblock * superBlock;
-			int superBlockRead = block_read(0, &superBlockRead);
+			sblock * superBlock = malloc(sizeof(superBlock));
+			int superBlockRead = block_read(0, &superBlock);
 			if(superBlockRead > 0){ // superBlock read sucessfully
-				log_msg("block read sucessfully\n");
+				log_msg("FS Contains Valid Super Block\n");
+
+
+
 				log_msg("\nsize of superBlock = %i\n", sizeof(sblock));
 			}
 			else {
@@ -130,25 +251,12 @@ void *sfs_init(struct fuse_conn_info *conn)
 			
 		}
 
-			
-		
-		// Creates inode table 
-		inodeTable = (inode *) malloc(TOTAL_INODES * sizeof(inode));
-		
-		// gets userID and GroupID // Not sure if we should set these since hypothetically couldnt different users access same drive
-		 int userID = getuid();
-   		 int groupID = getegid();
-		
-		 
+    else{
+        log_msg("block read failed\n");
+    }
 
-// int block_read(const int block_num, void *buf) first block should be Super Block 
-	
-log_msg("\ninodeTable initalize groupID: %i userID: %i\n", userID, groupID);
 
-// Mount dir would be the filepath = "/"
-
-	
-
+ log_msg("Rile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_STATE->diskfile);
 return SFS_STATE;
 	
 }
