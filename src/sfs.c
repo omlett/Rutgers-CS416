@@ -30,7 +30,15 @@
 
 #include "log.h"
 
+void testFSCreate();
 
+/* Tester Driver for Creating files */
+void testFSCreate(){
+  char pathName = malloc(PATH_MAX);
+  strcpy(pathName, "./hello.txt");
+  struct fuse_file_info * fi;
+  sfs_create(pathName, S_IFREG, fi);
+}
 
 /* Helper file for creating bitmap */
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
@@ -105,9 +113,9 @@ int testBit(int * bitmap, int bitK){
  * Changed in version 2.6
  */
 
- int debug = 1;
+ int debug = 0;
  int debug1= 0;
- int debugOverwite =1;
+ int debugOverwite =0;
 
 void *sfs_init(struct fuse_conn_info *conn){
     log_msg("\nsfs_ini1t()\n");
@@ -307,6 +315,8 @@ void *sfs_init(struct fuse_conn_info *conn){
 
    fprintf(stderr, "End of init\n");
 
+   testFSCreate();
+
   return SFS_DATA;
 	
 }
@@ -472,7 +482,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     }
 
     else{
-      log_msg("\nNo free inode in table\n");
+      log_msg("\nInode is not free\n");
     }
   }
 
