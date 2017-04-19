@@ -36,6 +36,18 @@
 //http://www.mathcs.emory.edu/~cheung/Courses/255/Syllabus/1-C-intro/bit-array.html
 int testBit(int * bitmap, int bitK);
 void setAndClearBit(int * bitmap, int bitK);
+int findFirstFree(int * bitmap){
+  int i = 0;
+  int l = 1;
+  for(; i< (BLOCK_SIZE / sizeof(int)); i++){  //Go through every integer in bitmap
+    for(; l < sizeof(int) + 1; l++){ // GO through each bit in the integer;
+      if(!bitmap[i] & (1<<(l-1))){
+        return ((i * 32) + (l -1));
+      }
+    }
+  }
+  return -1; // If no 
+}
 //Need to add to make file
 // Combined set and clear. If bit given in K, cleark that bit. Else set that bit
 void setBit(int * bitmap, int bitK){
@@ -196,7 +208,7 @@ void *sfs_init(struct fuse_conn_info *conn){
 			
       int inodeBitmap [TOTAL_INODES/sizeof(int)];
       setBit(inodeBitmap, 0); // inode 0 = root so set it as used;
-  
+      writeResult = block_write(2, inodeBitmap);
       
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &inodeBitmapk) failed\n");
@@ -207,7 +219,7 @@ void *sfs_init(struct fuse_conn_info *conn){
         //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
       }
 
-      writeResult = block_write(2, inodeBitmap);
+  
 
       int blockBitmap[TOTAL_BLOCKS/sizeof(int)];
            
@@ -232,7 +244,8 @@ void *sfs_init(struct fuse_conn_info *conn){
       i = 0;
 
       for(; i< TOTAL_INODES; i++){
-        inodeTable[i].iNum = i;            
+        inodeTable[i].iNum = i;
+        inodeTable[i].size = -1;            
       }
 
       inodeTable[0].iType = 'r';
@@ -387,11 +400,82 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  */
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
+   // mode_t  st_mode  mode of file
+  /*  S_IRWXU read, write, execute/search by owner
+      S_IRUSR read permission, owner
+      S_IWUSR write permission, owner
+      S_IXUSR execute/search permission, owner
+      S_IRWXG read, write, execute/search by group
+      S_IRGRP read permission, group
+      S_IWGRP write permission, group
+      S_IXGRP execute/search permission, group
+      S_IRWXO read, write, execute/search by others
+      S_IROTH read permission, others
+      S_IWOTH write permission, others
+      S_IXOTH execute/search permission, others
+      S_ISUID set-user-ID on execution
+      S_ISGID set-group-ID on execution
+      S_ISVTX on directories, restricted deletion flag
+  */
+
     int retstat = 0;
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
       path, mode, fi);
-    
-    
+
+    //Find free inode in bitmap
+    int * iBitMap = malloc(BLOCK_SIZE);
+  int freeInodeIndex;
+  int i = 0;
+  int readResult;
+  int writeResult;
+  readResult = block_read(2, iBitMap);
+  if(readResult < 1){
+    log_msg("\nInode Bitmap Block at Block %i Read Failed)\n", i);
+    exit(0);
+  }
+  freeInodeIndex = findFirstFree(iBitMap);
+  if(freeInodeIndex > 0){
+    setBit(iBitMap, freeInodeIndex);
+    writeResult= block_write(i, iBitMap);
+    if(writeResult < 1){
+      log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", i);
+      exit(0);
+    }
+    free(iBitMap);
+    inode * inodeTable = malloc(BLOCK_SIZE);
+    int inodeBlockIndex = 4 + (freeInodeIndex/((BLOCK_SIZE/sizeof(inode))));
+    log_msg("\nInode Block Index\n",  inodeBlockIndex);
+    readResult = block_read(inodeBlockIndex, inodeTable);
+    if(readResult < 1){
+      log_msg("\nInode table at Block %i Read Failed)\n", (BLOCK_SIZE/sizeof(inode)) * freeInodeIndex);
+      exit(0);
+    }
+
+    if(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size < 0){ // Inode is free
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iType = (S_ISDIR(mode)) ? 'd': 'f';
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iNum = freeInodeIndex;
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size = NULL;            // data block size (bytes) | 0 = free | Around 4 GB
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].atime = time(NULL);
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].ctime = time(NULL); 
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].mtime = time(NULL); 
+        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].userID = getuid();
+        inodeTable[freeInodeIndex %(BLOCK_SIZE/sizeof(inode))].bitPos = freeInodeIndex; 
+        strcpy(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].name, path);
+
+        //Write back to disk 
+        writeResult = block_write(inodeBlockIndex, inodeTable);
+        if(writeResult < 1){
+            log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", inodeBlockIndex);
+            exit(0);
+        }
+          free(inodeTable);
+    }
+
+    else{
+      log_msg("\nNo free inode in table\n");
+    }
+  }
+
     return retstat;
 }
 
