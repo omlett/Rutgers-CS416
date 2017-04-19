@@ -242,6 +242,8 @@ void *sfs_init(struct fuse_conn_info *conn){
       inodeTable[0].mtime = time(&(inodeTable[0].mtime));
       inodeTable[0].groupID = getegid();
       inodeTable[0].userID = getuid();
+      strcpy(inodeTable[0].name, "/");
+      log_msg("\nInode: 0 -> name = %s\n", inodeTable[0].name);
 
       i=4;
 
@@ -292,11 +294,6 @@ void *sfs_init(struct fuse_conn_info *conn){
 
    fprintf(stderr, "End of init\n");
 
-  //log_conn(conn);
-  //log_fuse_context(fuse_get_context());
-  //disk_close(SFS_DATA->diskfile);
-  disk_close(SFS_DATA->diskfile);
-
   return SFS_DATA;
 	
 }
@@ -324,10 +321,13 @@ void sfs_destroy(void *userdata)
 int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
+    log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",path, statbuf);
     char fpath[PATH_MAX];
+    strcpy(fpath, path);
+    //disk_open(SFS_DATA->diskfile);
     fprintf(stderr, "in getatt\n");
     char * blockBuffer = malloc(BLOCK_SIZE);
-    int readResult =block_read(blockBuffer, 1);
+    int readResult = block_read(1, blockBuffer);
     if(readResult < 1){
        log_msg("\nSuper Block Read Failed)\n");
        exit(0);
@@ -335,21 +335,40 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 
     sblock * super_block = (sblock *)blockBuffer;
     int num_inodes = super_block->num_inodes;
+    log_msg("\nSuper Block->num_inodes\n", super_block->num_inodes);
     int i = 0;
     int k = 0;
+    char * ptr = blockBuffer;
+    int i_counter = 0;
+
+    //char * parse = strtok(fpath, "/");
     for(; i < NUM_INODE_BLOCKS; i++){
       memset(blockBuffer, 1, BLOCK_SIZE);
-      readResult = block_read(blockBuffer, (i+4));
+      readResult = block_read((i+4), blockBuffer);
+      ptr = blockBuffer;
       for(; k < BLOCK_SIZE; k+=sizeof(inode)){
+          ptr += k;
+          
+          if(strcmp(((inode *)ptr)->name, path)== 0){
+              statbuf->st_ino = ((inode *)ptr)->iNum;
+              log_msg("\nInode: %i Same file path\n", k*i);
+              //statbuf->st_mode = ptr->i_mode;
+              //statbuf->st_nlink = ptr->i_links_count;
+              statbuf->st_uid = ((inode *)ptr)->userID;
+              statbuf->st_gid = ((inode *)ptr)->groupID;
+              statbuf->st_size = ((inode *)ptr)->size;
+              statbuf->st_blksize = BLOCK_SIZE;
+              //statbuf->st_blocks = tmp->i_blocks;
+              statbuf->st_atime = ((inode *)ptr)->atime;
+              statbuf->st_mtime = ((inode *)ptr)->mtime;
+              statbuf->st_ctime = ((inode *)ptr)->ctime;
+              log_stat(statbuf);
+              break;
+          }
+
 
       }
     }
-
-
-
-    
-    log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
-    path, statbuf);
     
     return retstat;
 }

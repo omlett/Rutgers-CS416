@@ -54,6 +54,7 @@ typedef struct inode{
 	int directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
 	int dIndirectBlockPtr;			// Single Doubly indirect block pointer
 	int bitPos;
+	char name[PATH_MAX];
 	// does not contain file path
 } inode;
 
