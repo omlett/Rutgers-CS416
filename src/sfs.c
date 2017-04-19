@@ -93,15 +93,16 @@ int testBit(int * bitmap, int bitK){
  * Changed in version 2.6
  */
 
- int debug = 0;
- int debugOverwite =0;
+ int debug = 1;
+ int debug1= 0;
+ int debugOverwite =1;
 
 void *sfs_init(struct fuse_conn_info *conn){
     log_msg("\nsfs_ini1t()\n");
     log_conn(conn);
     log_fuse_context(fuse_get_context());
 
-    if(debug){
+    if(debug1){
 
         disk_open(SFS_DATA->diskfile);
         //void *test="abcd";
@@ -244,21 +245,24 @@ void *sfs_init(struct fuse_conn_info *conn){
 
       i=4;
 
-      fprintf(stderr, "in bb-init3\n");
+      //fprintf(stderr, "in bb-init3\n");
       char * buffer = malloc(BLOCK_SIZE);
-     
- 
-      writeResult = block_write(4, inodeTable);
+      char * ptr = inodeTable;
+      for(; (i < 4 + NUM_INODE_BLOCKS); i++){
+        memset(buffer, 1, BLOCK_SIZE);
+        memcpy(buffer, ptr, BLOCK_SIZE);
+        writeResult = block_write(i, buffer);
 
-      if(writeResult < 0){ //write failed
-        log_msg("\nblock_write(0, &inodeTable) failed\n");
-        exit(0);
+        if(writeResult < 0){ //write failed
+          log_msg("\nblock_write(%i, &inodeTable) failed\n", i);
+          exit(0);
+        }
+        else{
+          log_msg("\nblock_write(%i, &inoodeTable) was successful", i);
+          ptr += BLOCK_SIZE;
+          //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
+        }
       }
-      else{
-        log_msg("\nblock_write(0, &inoodeTable) was successful");
-        //log_msg("\nsize of inodeBitmap = %i\n", sizeof(sblock));
-      }
-
      
     }
 		else if(readResult > 0){ // first block has been accessed before parse superBlock information
@@ -283,7 +287,7 @@ void *sfs_init(struct fuse_conn_info *conn){
     }
 
 
- log_msg("Rile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_DATA->diskfile);
+ log_msg("\nRile System Successfully Initialized SFS_STATE ---> DISKFILE: %s\n", SFS_DATA->diskfile);
 
 
    fprintf(stderr, "End of init\n");
@@ -308,6 +312,7 @@ void *sfs_init(struct fuse_conn_info *conn){
 void sfs_destroy(void *userdata)
 {
     log_msg("\nsfs_destroy(userdata=0x%08x)\n", userdata);
+    disk_close();
 }
 
 /** Get file attributes.
@@ -320,7 +325,28 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
     char fpath[PATH_MAX];
-       fprintf(stderr, "in getatt\n");
+    fprintf(stderr, "in getatt\n");
+    char * blockBuffer = malloc(BLOCK_SIZE);
+    int readResult =block_read(blockBuffer, 1);
+    if(readResult < 1){
+       log_msg("\nSuper Block Read Failed)\n");
+       exit(0);
+    }
+
+    sblock * super_block = (sblock *)blockBuffer;
+    int num_inodes = super_block->num_inodes;
+    int i = 0;
+    int k = 0;
+    for(; i < NUM_INODE_BLOCKS; i++){
+      memset(blockBuffer, 1, BLOCK_SIZE);
+      readResult = block_read(blockBuffer, (i+4));
+      for(; k < BLOCK_SIZE; k+=sizeof(inode)){
+
+      }
+    }
+
+
+
     
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
     path, statbuf);
