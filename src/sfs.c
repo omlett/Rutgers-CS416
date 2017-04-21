@@ -34,10 +34,7 @@ void testFSCreate();
 
 /* Tester Driver for Creating files */
 void testFSCreate(){
-  char pathName = malloc(PATH_MAX);
-  strcpy(pathName, "./hello.txt");
-  struct fuse_file_info * fi;
-  sfs_create(pathName, S_IFREG, fi);
+  File * fs = fopen("test.txt");
 }
 
 /* Helper file for creating bitmap */
@@ -115,7 +112,7 @@ int testBit(int * bitmap, int bitK){
 
  int debug = 0;
  int debug1= 0;
- int debugOverwite =0;
+ int debugOverwite = 0;
 
 void *sfs_init(struct fuse_conn_info *conn){
     log_msg("\nsfs_ini1t()\n");
@@ -433,7 +430,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
       path, mode, fi);
 
     //Find free inode in bitmap
-    int * iBitMap = malloc(BLOCK_SIZE);
+  int * iBitMap = malloc(BLOCK_SIZE);
   int freeInodeIndex;
   int i = 0;
   int readResult;
@@ -444,6 +441,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     exit(0);
   }
   freeInodeIndex = findFirstFree(iBitMap);
+  log_msg("\nFree Inode Index %i )\n", freeInodeIndex);
   if(freeInodeIndex > 0){
     setBit(iBitMap, freeInodeIndex);
     writeResult= block_write(i, iBitMap);
