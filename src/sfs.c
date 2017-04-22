@@ -580,12 +580,107 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 
 
 /** Create a directory */
+/**
+Todo:
+- figure out how to structure/traverse the block for direntry writes
+- write first 3 direntrys to block that was assigned to the inode
+	1- . 
+	2- ..
+	3- self pointer (google to confirm - apparently the directory has an entry for its own inode?)
+- should number of dir entries be tracked?
+- Future issues: what do when primary block is full of entries?
+- 
+**/
 int sfs_mkdir(const char *path, mode_t mode)
 {
     int retstat = 0;
     log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",
       path, mode);
    
+	//Find free inode in bitmap
+	int * iBitMap = malloc(BLOCK_SIZE);
+	int freeInodeIndex;
+	int i = 0;
+	int readResult;
+ 	int writeResult;
+
+	readResult = block_read(2, iBitMap);
+ 	if(readResult < 1){
+		log_msg("\nInode Bitmap Block at Block %i Read Failed)\n", i);
+		exit(0);
+	}
+
+	freeInodeIndex = findFirstFree(iBitMap);
+	log_msg("\nFree Inode Index %i )\n", freeInodeIndex);
+
+	if(freeInodeIndex > 0){
+		setBit(iBitMap, freeInodeIndex);
+		writeResult= block_write(i, iBitMap);
+		if(writeResult < 1){
+			log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", i);
+			exit(0);
+	    	}
+		free(iBitMap);
+
+		inode * inodeTable = malloc(BLOCK_SIZE);
+		log_msg("\nSize of Inode %i\n",  (sizeof(inode)));
+		int inodeBlockIndex = 4 + (freeInodeIndex/((BLOCK_SIZE/sizeof(inode))));
+		log_msg("\nInode Block Index %i \n",  inodeBlockIndex);
+		readResult = block_read(inodeBlockIndex, inodeTable);
+			if(readResult < 1){
+				log_msg("\nInode table at Block %i Read Failed)\n", (BLOCK_SIZE/sizeof(inode)) * freeInodeIndex);
+				exit(0);
+	    		}
+		log_msg("\nInode Index %i in Block %i\n", inodeBlockIndex, (freeInodeIndex % (BLOCK_SIZE/sizeof(inode))));
+
+		if(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size < 0){ // Inode is free
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iNum = freeInodeIndex;
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size = NULL;            // data block size (bytes) | 0 = free | Around 4 GB
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].atime = time(NULL);
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].ctime = time(NULL); 
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].mtime = time(NULL); 
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].userID = getuid();
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].bitPos = freeInodeIndex;
+			inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].mode = mode; 
+			strcpy(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].name, path);
+			
+			// Find free Data Block for Dir entries
+			int dBitMap = malloc(BLOCK_SIZE);
+			int freeBlockIndex;
+			i = 0;
+	
+			readResult = block_read(3, dBitMap);
+			if(readResult < 1){
+   		 		log_msg("\nData Block Bitmap Block at Block %i Read Failed)\n", i);
+   		 		exit(0);
+  			}
+
+			freeBlockIndex = 68 + findFirstFree(dBitMap);
+			log_msg("\nFree Data Block Index %i )\n", freeBlockIndex);
+				
+			if (freeBlockIndex > 0){
+				setBit(dBitMap, freeBlockIndex);
+
+				writeResult = block_write(i, dBitMap);
+				if(writeResult < 1){
+		      			log_msg("\nData Block Bitmap Block at Block %i Write Failed)\n", i);
+		      			exit(0);
+		    		}
+				free(dBitMap);
+
+				// Assign free data block to new inode
+				inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].directBlockPtr[0] = freeBlockIndex;
+				
+			}
+
+			//Write back to disk 
+			writeResult = block_write(inodeBlockIndex, inodeTable);
+			if(writeResult < 1){
+				log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", inodeBlockIndex);
+				exit(0);
+			}
+			free(inodeTable);
+	    	}
     
     return retstat;
 }
