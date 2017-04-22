@@ -44,24 +44,36 @@
  * permissions, number of links to the file, size, and block pointers 
  */
 typedef struct inode{
-	char iType;							// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
-	int iNum;							// inode number
-	long int size;						// data block size (bytes) | 0 = free | Around 4 GB
-	mode_t fileMode;						// Permissions (Dont think we need to worry about this)
-	time_t atime;						// inode access time
-	time_t ctime;						// inode change time
-	time_t mtime;						// inode modification time
-	uid_t userID;						// user id
-	gid_t groupID;						// group id
-	int nLink;
-	int directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
-	int dIndirectBlockPtr;				// Single Doubly indirect block pointer
-	int bitPos;
-	char name[PATH_MAX];
+	char			iType;					// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
+	int			iNum;					// inode number
+	unsigned long		size;					// data block size (bytes) | 0 = free | Around 4 GB
+	mode_t			fileMode;				// Permissions (Dont think we need to worry about this)
+	time_t			atime;					// inode access time
+	time_t			ctime;					// inode change time
+	time_t			mtime;					// inode modification time
+	uid_t			userID;					// user id
+	gid_t			groupID;				// group id
+	int			directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
+	int			dIndirectBlockPtr;			// Single Doubly indirect block pointer
+	int			bitPos;
+	char			name[PATH_MAX];
 	// does not contain file path
 } inode;
 
 inode * inodeTable;			// Global inode table
+
+typedef struct dirEntry{
+	int			iNum;					// inode number
+	char			fileName[PATH_MAX];			// filename
+} dirEntry;
+
+typedef struct sinBlock{
+	int			directBlockPtr [BLOCK_SIZE/sizeof(int)];// Each ptr in this array is a direct pointer
+} sinBlock;
+
+typedef struct dinBlock{
+	int			sinBlockPtr [BLOCK_SIZE/sizeof(int)];	// Each ptr in this array points to sinBlock 
+} dinBlock;
 
 // Superblock to describe filesystem
 // Each UNIX partition usually contains a special block called the superblock. 
@@ -92,21 +104,21 @@ inode * inodeTable;			// Global inode table
  */
 
 typedef struct sblock {
-	unsigned long fs_size;							// Size of File System (Ours in 24 MB)
-	unsigned int num_inodes;						// Number inodes in the system
-	unsigned int num_blocks;						// Number of total blocks
-	unsigned int num_r_blocks;						// Number of reserved blocks (Boot, Super, InondeBitMap, DataBitMap, Inodetable)
-	unsigned int first_data_block;
-	unsigned long block_size;							// Systems blocksize (512 for Standard UNIX) .. PAGE = 8 Blocks
-	unsigned char dirtyFlag;
-	unsigned int num_free_blocks;				// Number of free blocks available (TOTAL - RESERVED) Starting
-	unsigned int num_free_inodes;					// TOTAL - 1 (root)
-	int index_next_free_block;						// TOAL BLOCKS - RESERVED  1				
-	int * free_block_list;
-	int * free_inode_list;										// Number of free inodes in file system
-	int index_next_free_inode;						// Index of the free inode
+	unsigned long		fs_size;					// Size of File System (Ours in 24 MB)
+	unsigned int		num_inodes;					// Number inodes in the system
+	unsigned int		num_blocks;					// Number of total blocks
+	unsigned int		num_r_blocks;					// Number of reserved blocks (Boot, Super, InondeBitMap, DataBitMap, Inodetable)
+	unsigned int		first_data_block;
+	unsigned long		block_size;					// Systems blocksize (512 for Standard UNIX) .. PAGE = 8 Blocks
+	unsigned char		dirtyFlag;
+	unsigned int		num_free_blocks;				// Number of free blocks available (TOTAL - RESERVED) Starting
+	unsigned int		num_free_inodes;				// TOTAL - 1 (root)
+	int			index_next_free_block;				// TOAL BLOCKS - RESERVED  1				
+	int			* free_block_list;
+	int			* free_inode_list;				// Number of free inodes in file system
+	int			index_next_free_inode;				// Index of the free inode
 	// magic number?
-	int root_inode_num; // Inode number of root directory
+	int			root_inode_num; 				// Inode number of root directory
 
 } sblock;
 
