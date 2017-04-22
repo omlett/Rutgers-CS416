@@ -10,7 +10,6 @@
 #include "params.h"
 #include "block.h"
 #include "stdefs.h"
-
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -56,35 +55,55 @@ void *sfs_init(struct fuse_conn_info *conn)
     log_conn(conn);
     log_fuse_context(fuse_get_context());
 
+
 //    return SFS_DATA;
+//    SFS_DATA defined in /src/params.h
+//    #define SFS_DATA ((struct sfs_state *) fuse_get_context()->private_data) is in params.h so its set on mount
+//	  sfs_state compriesed of file pointer to logfile and the string with disk file name
+//    init should open the disk with void disk_open(const char* diskfile_path) from block.c
+//    not need for initTracker as it should be a disk mounted basis not FUSE instance basis.
+//
+//    an integer called diskfile in block.c gets set on the result of a system open call in disk_open
+//    so if it sucessfully opens then disk_open will return since disk already opened
 
 //	Rough Draft - How do we write this to the disk?
 //	ToDo:
 //		- Assign shit to /root
 //		- 
+	
+		struct sfs_state* SFS_STATE = SFS_DATA;
 
-	time_t theTime;
+		
+		disk_open((SFS_DATA)->diskfile);
 
-	if (initTracker == NULL){
-		initTracker = 'i';
-		theTime = time(NULL);
-
+		// Creates inode table 
 		inodeTable = (inode *) malloc(TOTAL_INODES * sizeof(inode));
 		
+		// gets userID and GroupID // Not sure if we should set these since hypothetically couldnt different users access same drive
+		 int userID = getuid();
+   		 int groupID = getegid();
+
 		int x;
 		for (x = 0; x < TOTAL_INODES; x++){
 			inodeTable[x].iType = NULL;
 			inodeTable[x].ino = x;
 			inodeTable[x].size = 0;
 			inodeTable[x].fileMode = NULL;
-			inodeTable[x].atime = theTime;
-			inodeTable[x].ctime = theTime;
-			inodeTable[x].mtime = theTime;
+			inodeTable[x].atime = NULL;
+			inodeTable[x].ctime = NULL;
+			inodeTable[x].mtime = NULL;
+			inodeTable[x].groupID = userID;
+			inodeTable[x].userID = groupID;
 		}
-	}
-	else{
-		fprintf(stderr, "Already initialized\n");
-	}
+
+log_msg("\ninodeTable initalize groupID: %i userID: %i\n", userID, groupID);
+
+// Mount dir would be the filepath = "/"
+
+	
+
+return SFS_STATE;
+	
 }
 
 /**

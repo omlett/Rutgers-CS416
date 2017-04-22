@@ -1,0 +1,141 @@
+
+sfs_ini1t()
+    conn:
+    proto_major = 7
+    proto_minor = 22
+    async_read = 1
+    max_write = 131072
+    max_readahead = 131072
+    capable = 00000ffb
+    want = 00000010
+    context:
+    fuse = 01207510
+    uid = 0
+    gid = 0
+    pid = 0
+    private_data = 01207010
+    logfile = 01207030
+    diskfile = /.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile
+    umask = 00000
+
+disk_open(path=/.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile) TOTAL_FS_SIZE: 25165824
+
+Read Result 512n
+block_write(0, &superBlock) was successful
+size of superBlock = 72
+
+Settimg bit position 0 
+
+block_write(0, &inodeBitmap) was successful
+block_write(0, &blockBitmap) was successful
+Inode: 0 -> name = /
+
+block_write(4, &inoodeTable) was successful
+block_write(5, &inoodeTable) was successful
+block_write(6, &inoodeTable) was successful
+block_write(7, &inoodeTable) was successful
+block_write(8, &inoodeTable) was successful
+block_write(9, &inoodeTable) was successful
+block_write(10, &inoodeTable) was successful
+block_write(11, &inoodeTable) was successful
+block_write(12, &inoodeTable) was successful
+block_write(13, &inoodeTable) was successful
+block_write(14, &inoodeTable) was successful
+block_write(15, &inoodeTable) was successful
+block_write(16, &inoodeTable) was successful
+bl
+sfs_destroy(userdata=0x015bc010)
+ccessful
+block_write(18, &inoodeTable) was successful
+block_write(19, &inoodeTable) was successful
+block_write(20, &inoodeTable) was successful
+block_write(21, &inoodeTable) was successful
+block_write(22, &inoodeTable) was successful
+block_write(23, &inoodeTable) was successful
+block_write(24, &inoodeTable) was successful
+block_write(25, &inoodeTable) was successful
+block_write(26, &inoodeTable) was successful
+block_write(27, &inoodeTable) was successful
+block_write(28, &inoodeTable) was successful
+block_write(29, &inoodeTable) was successful
+block_write(30, &inoodeTable) was successful
+block_write(31, &inoodeTable) was successful
+block_write(32, &inoodeTable) was successful
+block_write(33, &inoodeTable) was successful
+block_write(34, &inoodeTable) was successful
+block_write(35, &inoodeTable) was successful
+block_write(36, &inoodeTable) was successful
+block_write(37, &inoodeTable) was successful
+block_write(38, &inoodeTable) was successful
+block_write(39, &inoodeTable) was successful
+block_write(40, &inoodeTable) was successful
+block_write(41, &inoodeTable) was successful
+block_write(42, &inoodeTable) was successful
+block_write(43, &inoodeTable) was successful
+block_write(44, &inoodeTable) was successful
+block_write(45, &inoodeTable) was successful
+block_write(46, &inoodeTable) was successful
+block_write(47, &inoodeTable) was successful
+block_write(48, &inoodeTable) was successful
+block_write(49, &inoodeTable) was successful
+block_write(50, &inoodeTable) was successful
+block_write(51, &inoodeTable) was successful
+block_write(52, &inoodeTable) was successful
+block_write(53, &inoodeTable) was successful
+block_write(54, &inoodeTable) was successful
+block_write(55, &inoodeTable) was successful
+block_write(56, &inoodeTable) was successful
+block_write(57, &inoodeTable) was successful
+block_write(58, &inoodeTable) was successful
+block_write(59, &inoodeTable) was successful
+block_write(60, &inoodeTable) was successful
+block_write(61, &inoodeTable) was successful
+block_write(62, &inoodeTable) was successful
+block_write(63, &inoodeTable) was successful
+block_write(64, &inoodeTable) was successful
+block_write(65, &inoodeTable) was successful
+block_write(66, &inoodeTable) was successful
+block_write(67, &inoodeTable) was successful
+Rile System Successfully Initialized SFS_STATE ---> DISKFILE: /.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile
+
+sfs_create(path="hello.txt", mode=020017607, fi=0x0000000c)
+
+Free Inode Index 1 )
+
+Settimg bit position 1 
+
+Size of Inode 160
+
+Inode Block Index 4 
+
+Inode Index 4 in Block 1
+
+sfs_getattr(path="/.Trash", statbuf=0xf66cac40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.Trash-80339", statbuf=0xf5ec9c40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/", statbuf=0xf66cac10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 00
+    st_nlink = 0
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = 0
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x58fa9600
+    st_mtime = 0x58fa9600
+    st_ctime = 0x58fa9600
+
+sfs_destroy(userdata=0x01207010)

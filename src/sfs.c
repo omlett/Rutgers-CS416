@@ -34,7 +34,8 @@ void testFSCreate();
 
 /* Tester Driver for Creating files */
 void testFSCreate(){
-  File * fs = fopen("test.txt");
+  sfs_create("hello.txt", "r");
+  
 }
 
 /* Helper file for creating bitmap */
@@ -44,10 +45,14 @@ void setAndClearBit(int * bitmap, int bitK);
 int findFirstFree(int * bitmap){
   int i = 0;
   int l = 1;
+  unsigned int flag = 1;
+
   for(; i< (BLOCK_SIZE / sizeof(int)); i++){  //Go through every integer in bitmap
-    for(; l < sizeof(int) + 1; l++){ // GO through each bit in the integer;
-      if(!bitmap[i] & (1<<(l-1))){
-        return ((i * 32) + (l -1));
+    for(; l < 32; l++){ // GO through each bit in the integer;
+      flag = 1;
+      flag = flag << l;
+      if(!(bitmap[i] & (flag << l))){
+        return ((i * 32) + l);
       }
     }
   }
@@ -56,10 +61,10 @@ int findFirstFree(int * bitmap){
 //Need to add to make file
 // Combined set and clear. If bit given in K, cleark that bit. Else set that bit
 void setBit(int * bitmap, int bitK){
-  
   int i = abs(bitK/32);
   int pos = abs(bitK%32);
   unsigned int flag = 1;
+  log_msg("\nSettimg bit position %i \n", bitK);
   bitmap[i] | flag;
   
 }
@@ -112,7 +117,7 @@ int testBit(int * bitmap, int bitK){
 
  int debug = 0;
  int debug1= 0;
- int debugOverwite = 0;
+ int debugOverwite = 1;
 
 void *sfs_init(struct fuse_conn_info *conn){
     log_msg("\nsfs_ini1t()\n");
@@ -173,7 +178,7 @@ void *sfs_init(struct fuse_conn_info *conn){
 			// Create and initialize SBlock
       //int * blockFreeList = (int *)malloc(TOTAL_BLOCKS/sizeof(int));
       sblock * superBlock = (sblock *)malloc(sizeof(sblock));
-			superBlock->fs_size = TOTAL_FS_SIZE;
+			/*superBlock->fs_size = TOTAL_FS_SIZE;
 			superBlock->block_size = BLOCK_SIZE;
 			superBlock->num_inodes = TOTAL_INODES;
       superBlock->num_blocks = TOTAL_BLOCKS;
@@ -194,7 +199,7 @@ void *sfs_init(struct fuse_conn_info *conn){
         log_msg("INDEX_NEXT_FREE_BLOCK: %i\n", superBlock->index_next_free_block);
         log_msg("ROOT_INODE_NUM: %i\n", superBlock->root_inode_num);
       }	
-			
+			*/
       // Write the SBlock to to first block in FS using block_write
 			// Write should return exactly @BLOCK_SIZE except on error. 
 
@@ -267,9 +272,9 @@ void *sfs_init(struct fuse_conn_info *conn){
 
       //fprintf(stderr, "in bb-init3\n");
       char * buffer = malloc(BLOCK_SIZE);
-      char * ptr = inodeTable;
+      char * ptr = (char *)inodeTable;
       for(; (i < 4 + NUM_INODE_BLOCKS); i++){
-        memset(buffer, 1, BLOCK_SIZE);
+        memset(buffer, 0, BLOCK_SIZE);
         memcpy(buffer, ptr, BLOCK_SIZE);
         writeResult = block_write(i, buffer);
 
@@ -451,14 +456,15 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     }
     free(iBitMap);
     inode * inodeTable = malloc(BLOCK_SIZE);
+    log_msg("\nSize of Inode %i\n",  (sizeof(inode)));
     int inodeBlockIndex = 4 + (freeInodeIndex/((BLOCK_SIZE/sizeof(inode))));
-    log_msg("\nInode Block Index\n",  inodeBlockIndex);
+    log_msg("\nInode Block Index %i \n",  inodeBlockIndex);
     readResult = block_read(inodeBlockIndex, inodeTable);
     if(readResult < 1){
       log_msg("\nInode table at Block %i Read Failed)\n", (BLOCK_SIZE/sizeof(inode)) * freeInodeIndex);
       exit(0);
     }
-
+    log_msg("\nInode Index %i in Block %i\n", inodeBlockIndex, (freeInodeIndex % (BLOCK_SIZE/sizeof(inode))));
     if(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size < 0){ // Inode is free
         inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iType = (S_ISDIR(mode)) ? 'd': 'f';
         inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iNum = freeInodeIndex;

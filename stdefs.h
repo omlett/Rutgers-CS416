@@ -15,6 +15,8 @@
 #define TOTAL_FS_SIZE (8 + 16) * 1024 * 1024
 #define TOTAL_BLOCKS TOTAL_FS_SIZE/BLOCK_SIZE
 #define NUM_RESERVED_BLOCKS NUM_INODE_BLOCKS + 4
+#define BLOCK_SIZE 512
+#define PATH_MAX 64
 /****************************************************************/
 // Structure Definitions
 /****************************************************************/
@@ -52,7 +54,7 @@ typedef struct inode{
 	uid_t userID;						// user id
 	gid_t groupID;						// group id
 	int directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
-	int dIndirectBlockPtr;			// Single Doubly indirect block pointer
+	int dIndirectBlockPtr;				// Single Doubly indirect block pointer
 	int bitPos;
 	char name[PATH_MAX];
 	// does not contain file path
