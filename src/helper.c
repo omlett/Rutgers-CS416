@@ -58,4 +58,19 @@ int writeInodeBitmap(int * bitmap, int blockNum){
       }
 }
 
+int createInode(inode * inode){
+		inode->iType = (S_ISDIR(mode)) ? 'd': 'f';
+        inode->iNum = freeInodeIndex;
+        inode->size = 0;            // data block size (bytes) | 0 = free | Around 4 GB
+        inode->atime = time(NULL);
+        inode->actime = time(NULL); 
+        inode->mtime = time(NULL); 
+        inode->userID = getuid();
+        inode->fileMode = mode; 
+        inode->bitPos = freeInodeIndex; 
+        strcpy(inode->name, path);
+
+
+}
+
 

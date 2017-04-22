@@ -9,7 +9,7 @@
 
 #include "params.h"
 #include "block.h"
-#include "../stdefs.h"
+#include "stdefs.h"
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -218,7 +218,7 @@ void *sfs_init(struct fuse_conn_info *conn){
 			
       int inodeBitmap [TOTAL_INODES/sizeof(int)];
       setBit(inodeBitmap, 0); // inode 0 = root so set it as used;
-      writeResult = block_write(2, inodeBitmap);
+      writeResult = block_write(IBITMAP_IDX, inodeBitmap);
       
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &inodeBitmapk) failed\n");
@@ -239,7 +239,7 @@ void *sfs_init(struct fuse_conn_info *conn){
            setBit(blockBitmap, i);
       }
 
-      writeResult = block_write(3, blockBitmap);
+      writeResult = block_write(BBITMAP_IDX, blockBitmap);
 
       if(writeResult < 0){ //write failed
         log_msg("\nblock_write(0, &blockBitmap) failed\n");
@@ -352,7 +352,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     //disk_open(SFS_DATA->diskfile);
     fprintf(stderr, "in getatt\n");
     char * blockBuffer = malloc(BLOCK_SIZE);
-    int readResult = block_read(1, blockBuffer);
+    int readResult = block_read(SBLOCK_IDX, blockBuffer);
     if(readResult < 1){
        log_msg("\nSuper Block Read Failed)\n");
        exit(0);
@@ -440,42 +440,33 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
   int i = 0;
   int readResult;
   int writeResult;
-  readResult = block_read(2, iBitMap);
+  readResult = block_read(IBITMAP_IDX, iBitMap);
   if(readResult < 1){
-    log_msg("\nInode Bitmap Block at Block %i Read Failed)\n", i);
+    log_msg("\nInode Bitmap Block at Block %i Read Failed)\n", IBITMAP_IDX);
     exit(0);
   }
   freeInodeIndex = findFirstFree(iBitMap);
   log_msg("\nFree Inode Index %i )\n", freeInodeIndex);
   if(freeInodeIndex > 0){
     setBit(iBitMap, freeInodeIndex);
-    writeResult= block_write(i, iBitMap);
+    writeResult= block_write(IBITMAP_IDX, iBitMap);
     if(writeResult < 1){
-      log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", i);
+      log_msg("\nInode Bitmap Block at Block %i Write Failed)\n", IBITMAP_IDX );
       exit(0);
     }
     free(iBitMap);
     inode * inodeTable = malloc(BLOCK_SIZE);
     log_msg("\nSize of Inode %i\n",  (sizeof(inode)));
-    int inodeBlockIndex = 4 + (freeInodeIndex/((BLOCK_SIZE/sizeof(inode))));
+    int inodeBlockIndex = 4 + (freeInodeIndex/ NINODES_BLOCK);
     log_msg("\nInode Block Index %i \n",  inodeBlockIndex);
     readResult = block_read(inodeBlockIndex, inodeTable);
     if(readResult < 1){
-      log_msg("\nInode table at Block %i Read Failed)\n", (BLOCK_SIZE/sizeof(inode)) * freeInodeIndex);
+      log_msg("\nInode table at Block %i Read Failed)\n", NINODES_BLOCK * freeInodeIndex);
       exit(0);
     }
-    log_msg("\nInode Index %i in Block %i\n", inodeBlockIndex, (freeInodeIndex % (BLOCK_SIZE/sizeof(inode))));
-    if(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size < 0){ // Inode is free
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iType = (S_ISDIR(mode)) ? 'd': 'f';
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].iNum = freeInodeIndex;
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].size = NULL;            // data block size (bytes) | 0 = free | Around 4 GB
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].atime = time(NULL);
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].ctime = time(NULL); 
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].mtime = time(NULL); 
-        inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].userID = getuid();
-        inodeTable[freeInodeIndex %(BLOCK_SIZE/sizeof(inode))].bitPos = freeInodeIndex; 
-        strcpy(inodeTable[freeInodeIndex%(BLOCK_SIZE/sizeof(inode))].name, path);
-
+    log_msg("\nInode Index %i in Block %i\n", inodeBlockIndex, (freeInodeIndex % NINODES_BLOCK);
+    if(inodeTable[freeInodeIndex% NINODES_BLOCK].size < 0){ // Inode is free
+        createInode(&inodeTable[freeInodeIndex% NINODES_BLOCK], mode);
         //Write back to disk 
         writeResult = block_write(inodeBlockIndex, inodeTable);
         if(writeResult < 1){

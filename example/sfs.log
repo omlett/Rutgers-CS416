@@ -335,3 +335,159 @@ Inode: 0 Same file path
     st_atime = 0x00000000
     st_mtime = 0x58fad85c
     st_ctime = 0x58fad85c
+
+sfs_getattr(path="/", statbuf=0x40c0fc10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_opendir(path="/", fi=0x40c0fc30)

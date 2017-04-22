@@ -18,14 +18,6 @@
 #define BLOCK_SIZE 512
 #define PATH_MAX 64
 #define INVALID_INO TOTAL_INODES
-#define NINODES_BLOCK BLOCK_SIZE/sizeof(inode)
-#define BOOTBLOCK_IDX 0
-#define SBLOCK_IDX 1
-#define IBITMAP_IDX 2
-#define BBITMAP_IDX 3
-#define ITABLE_IDX 4
-#define DBLOCK_IDX 68
-
 /****************************************************************/
 // Structure Definitions
 /****************************************************************/
