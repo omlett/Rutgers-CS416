@@ -259,8 +259,8 @@ void *sfs_init(struct fuse_conn_info *conn){
       }
 
       inodeTable[0].iType = 'r';
-      inodeTable[0].size = 0; 
-      inodeTable[0].atime = time(&(inodeTable[0].atime));
+      inodeTable[0].fileMode = S_IFDIR;
+      inodeTable[0].nLink = 2;
       inodeTable[0].ctime = time(&(inodeTable[0].ctime));
       inodeTable[0].mtime = time(&(inodeTable[0].mtime));
       inodeTable[0].groupID = getegid();
@@ -377,8 +377,8 @@ int sfs_getattr(const char *path, struct stat *statbuf)
           if(strcmp(((inode *)ptr)->name, path)== 0){
               statbuf->st_ino = ((inode *)ptr)->iNum;
               log_msg("\nInode: %i Same file path\n", k*i);
-              //statbuf->st_mode = ptr->i_mode;
-              //statbuf->st_nlink = ptr->i_links_count;
+              statbuf->st_mode = ((inode *) ptr)->fileMode;
+              statbuf->st_nlink = ((inode *) ptr)->nLink;
               statbuf->st_uid = ((inode *)ptr)->userID;
               statbuf->st_gid = ((inode *)ptr)->groupID;
               statbuf->st_size = ((inode *)ptr)->size;

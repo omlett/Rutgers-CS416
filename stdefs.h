@@ -47,12 +47,13 @@ typedef struct inode{
 	char iType;							// dir or file //AK: Why short, if either dir or file we can just use char short is 2 bytes, we dont need 2^16 optiomns
 	int iNum;							// inode number
 	long int size;						// data block size (bytes) | 0 = free | Around 4 GB
-	//int fileMode;						// Permissions (Dont think we need to worry about this)
+	mode_t fileMode;						// Permissions (Dont think we need to worry about this)
 	time_t atime;						// inode access time
 	time_t ctime;						// inode change time
 	time_t mtime;						// inode modification time
 	uid_t userID;						// user id
 	gid_t groupID;						// group id
+	int nLink;
 	int directBlockPtr [10];			// 10 direct pointers to the datablocks for the file (pointers are indexs of the block)
 	int dIndirectBlockPtr;				// Single Doubly indirect block pointer
 	int bitPos;

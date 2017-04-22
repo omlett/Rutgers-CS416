@@ -9,16 +9,16 @@ sfs_ini1t()
     capable = 00000ffb
     want = 00000010
     context:
-    fuse = 01207510
+    fuse = 020b2510
     uid = 0
     gid = 0
     pid = 0
-    private_data = 01207010
-    logfile = 01207030
-    diskfile = /.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile
+    private_data = 020b2010
+    logfile = 020b2030
+    diskfile = /.autofs/ilab/ilab_users/akhaz/Desktop/Assignment3/diskfile
     umask = 00000
 
-disk_open(path=/.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile) TOTAL_FS_SIZE: 25165824
+disk_open(path=/.autofs/ilab/ilab_users/akhaz/Desktop/Assignment3/diskfile) TOTAL_FS_SIZE: 25165824
 
 Read Result 512n
 block_write(0, &superBlock) was successful
@@ -43,9 +43,7 @@ block_write(13, &inoodeTable) was successful
 block_write(14, &inoodeTable) was successful
 block_write(15, &inoodeTable) was successful
 block_write(16, &inoodeTable) was successful
-bl
-sfs_destroy(userdata=0x015bc010)
-ccessful
+block_write(17, &inoodeTable) was successful
 block_write(18, &inoodeTable) was successful
 block_write(19, &inoodeTable) was successful
 block_write(20, &inoodeTable) was successful
@@ -96,7 +94,7 @@ block_write(64, &inoodeTable) was successful
 block_write(65, &inoodeTable) was successful
 block_write(66, &inoodeTable) was successful
 block_write(67, &inoodeTable) was successful
-Rile System Successfully Initialized SFS_STATE ---> DISKFILE: /.autofs/ilab/ilab_users/akhaz/Desktop/assignment3/diskfile
+Rile System Successfully Initialized SFS_STATE ---> DISKFILE: /.autofs/ilab/ilab_users/akhaz/Desktop/Assignment3/diskfile
 
 sfs_create(path="hello.txt", mode=020017607, fi=0x0000000c)
 
@@ -104,21 +102,21 @@ Free Inode Index 1 )
 
 Settimg bit position 1 
 
-Size of Inode 160
+Size of Inode 176
 
 Inode Block Index 4 
 
 Inode Index 4 in Block 1
 
-sfs_getattr(path="/.Trash", statbuf=0xf66cac40)
+sfs_getattr(path="/.Trash", statbuf=0x40c0fc40)
 
 Super Block->num_inodes
 
-sfs_getattr(path="/.Trash-80339", statbuf=0xf5ec9c40)
+sfs_getattr(path="/.Trash-80339", statbuf=0x3bffec40)
 
 Super Block->num_inodes
 
-sfs_getattr(path="/", statbuf=0xf66cac10)
+sfs_getattr(path="/", statbuf=0x40c0fc10)
 
 Super Block->num_inodes
 
@@ -126,16 +124,214 @@ Inode: 0 Same file path
     si:
     st_dev = 0
     st_ino = 0
-    st_mode = 00
-    st_nlink = 0
+    st_mode = 040000
+    st_nlink = 2
     st_uid = 80339
     st_gid = 1234
     st_rdev = 0
-    st_size = 0
+    st_size = -1
     st_blksize = 512
     st_blocks = 0
-    st_atime = 0x58fa9600
-    st_mtime = 0x58fa9600
-    st_ctime = 0x58fa9600
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
 
-sfs_destroy(userdata=0x01207010)
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/.Trash", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.Trash-80339", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/", statbuf=0x40c0fc10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_opendir(path="/", fi=0x3bffec30)
+
+sfs_getattr(path="/.Trash", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.Trash-80339", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/", statbuf=0x40c0fc10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x40c0fc40)
+
+Super Block->num_inodes
+
+sfs_getattr(path="/.git", statbuf=0x3bffec40)
+
+Super Block->num_inodes
+
+sfs_opendir(path="/", fi=0x40c0fc30)
+
+sfs_getattr(path="/", statbuf=0x3bffec10)
+
+Super Block->num_inodes
+
+Inode: 0 Same file path
+    si:
+    st_dev = 0
+    st_ino = 0
+    st_mode = 040000
+    st_nlink = 2
+    st_uid = 80339
+    st_gid = 1234
+    st_rdev = 0
+    st_size = -1
+    st_blksize = 512
+    st_blocks = 0
+    st_atime = 0x00000000
+    st_mtime = 0x58fad85c
+    st_ctime = 0x58fad85c
