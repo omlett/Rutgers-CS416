@@ -175,6 +175,8 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 
 	}
 
+	curr_page = tmp;
+
 	// Copy Sniped Page to Buffer
 	memcpy(buffer_page, curr_page, PAGE_SIZE);
 
