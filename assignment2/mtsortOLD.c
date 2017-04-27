@@ -1,4 +1,4 @@
-/******************************************************************************
+/*******************************************************************************
  ** CS416 - Operating Systems Theory                                         **
  ** Prepared By: William Katsak <wkatsak@cs.rutgers.edu>                     **
  ** Code Written By: Guilherme Cox <cox@computer.org>                        **
@@ -8,6 +8,7 @@
 #include <signal.h>       // signal(..)
 #include <stdlib.h>       // atoi(..)
 #include "my_pthread_t.h"
+#include "myallocate.h"
 #include <unistd.h>       // usleep(..)
 #include <sys/ucontext.h>
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,8 +43,9 @@ void *fnsort( void *arg )
     mtx0  = pargs->mtx;
     mtx1  = pargs->mtx+1;
 
-    while( !quitting )
-    {
+   while( !quitting )
+   {
+
         my_pthread_mutex_lock( mtx0 );
 	my_pthread_mutex_lock( mtx1 );
         /*if( my_pthread_mutex_trylock( mtx1 ) != 0 )
@@ -62,9 +64,9 @@ void *fnsort( void *arg )
 
         my_pthread_mutex_unlock( mtx0 );
         my_pthread_mutex_unlock( mtx1 );
-
+	
         my_pthread_yield( );
-    }
+   }
 
     my_pthread_exit( 0 );
 
@@ -108,11 +110,11 @@ void * fncheck( void *arg )
             my_pthread_mutex_unlock( mtx+i );
 
         // j seconds
-        j = j+1;
+        j = 1;
 #ifndef MYTHREAD
-        sleep( j );
+       // sleep( j );
 #endif
-        my_pthread_yield( );
+       my_pthread_yield( );
     }
 
     my_pthread_exit( 0 );
@@ -190,8 +192,8 @@ int main( int argc, char **argv )
     printf( "waiting...\n" );
 
     for( i = 0; i < nListSize-1; i++ )
-        my_pthread_join( threads[i], 0 );
-    my_pthread_join( thrcheck, 0 );
+        my_pthread_join(threads[i], 0 );
+    my_pthread_join(thrcheck, 0 );
 
     for( i = 0; i < nListSize; i++ )
         my_pthread_mutex_destroy( &mutexes[i] );
@@ -200,10 +202,10 @@ int main( int argc, char **argv )
     printList( pList, nListSize );
 
     // Cleaning
-    free( pthrargs );
-    free( mutexes );
-    free( threads );
-    free( pList );
+   free( pthrargs );
+   free( mutexes );
+   free( threads );
+   free( pList );
 
     return 0;
 }

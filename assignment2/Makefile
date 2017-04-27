@@ -1,5 +1,5 @@
 CC      =       gcc
-FLAGS	=	-pedantic -Wall -g -w
+FLAGS	=	    -g
 COMPILE =       ${CC} ${FLAGS}
 
 all:    test
@@ -7,13 +7,13 @@ test: test.o myallocate.o
 	${COMPILE} -o test test.o myallocate.o
 test.o: test.c
 	${COMPILE} -c test.c
-simple:		simple.c
-	${COMPILE} -o simple simple.c my_pthread.c myallocate.c
-mcounter:	mcounter.c
+msimple:		msimple.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
+	${COMPILE} -o msimple msimple.c my_pthread.c myallocate.c
+mcounter:	mcounter.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
 	${COMPILE} -o mcounter mcounter.c my_pthread.c myallocate.c
-mtsort:		mtsort.c
+mtsort:		mtsort.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
 	${COMPILE} -o mtsort mtsort.c my_pthread.c myallocate.c
-mmatrix:	mmatrix.c
+mmatrix:	mmatrix.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
 	${COMPILE} -o mmatrix mmatrix.c my_pthread.c myallocate.c
 testj:	test_johnny.c
 	${COMPILE} -o testj test_johnny.c my_pthread.c myallocate.c

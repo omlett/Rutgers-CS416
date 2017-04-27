@@ -9,31 +9,18 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include "myallocate.h"
-#include "my_pthread_t.h"
 
 
-/****************************************************************/
-/*
-// Global Declarations
-*/
-/****************************************************************/
+current_tid = 1;					// initialized to tid of the main thread, updated when main thread swaps to another thread
 
-// Structures
-struct page_meta_data{
-	int isOsRegion;
-	int tid;					// Thread Id
-	int page_num;					// Page Counter
-	int inUse;					// Is Free
-	page_ptr *next;					// Next Page
-	page_ptr *prev;					// Previous Page
-};
+static char *all_memory;			// pointer to page 0 (1st byte of 8MB physical memory + 16MB swapfile)
+void *buffer_page = NULL;			// pointer to page 0 (buffer page used for swapping pages)
+static void *base_page = NULL;		// pointer to page 1 (1st byte of OS region)
+static void *user_space = NULL;		// pointer to page 1000 (1st byte of user region)
+static void *swap_file = NULL;		// pointer to page 2048 (1st byte of swap file)
 
-current_tid = 1;
-static char *all_memory;
-static void *base_page = NULL;
-void *buffer_page = NULL;
-static void *user_space = NULL;
-static page_ptr page_table[2048];
+static page_meta page_table[6144];	// page table: array of page_meta_data structs
+
 
 /****************************************************************/
 /*
@@ -60,27 +47,40 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 */
 /****************************************************************/
 
-// Initialize All Memory
+// allocate 24MB (physical mem + swapfile) with memalign
+// set pointers to key regions
+// initialize page table
 void initAll(){
-	all_memory = (char *) memalign(PAGE_SIZE , MEMORY_SIZE * sizeof(char));			//Creates 8mb physical mem
+	all_memory = (char *) memalign(PAGE_SIZE , (MEMORY_SIZE+SWAPFILE_SIZE) * sizeof(char));			//Creates 8mb physical mem + 16mb swapfile
 	buffer_page = (void *) all_memory;
 	base_page = (char *)all_memory + PAGE_SIZE;
 	user_space = (char *)all_memory + 1000*PAGE_SIZE;
+	swap_file = (char*)all_memory + 2048*PAGE_SIZE;
 
 	int x;
 	
+	// Initialize Page Table
+	// OS region
 	for (x = 1; x < 1000; x++){
 		page_table[x].isOsRegion = 1;
 		page_table[x].tid = -69;
 		page_table[x].page_num = 0;
 		page_table[x].inUse = 0;
 	} 
+	// Memory
 	for (x = 1000; x < 2048; x++){
 		page_table[x].isOsRegion = 0;
 		page_table[x].tid = -69;
 		page_table[x].page_num = 0;
 		page_table[x].inUse = 0;
 	}
+	// Swap file
+	for (x = 2048; x < 6144; x++){
+		page_table[x].isOsRegion = 0;
+		page_table[x].tid = -69;
+		page_table[x].page_num = 0;
+		page_table[x].inUse = 0;
+	}	
 	
 	struct sigaction sa;
 	sa.sa_flags = SA_SIGINFO;
@@ -94,39 +94,50 @@ void initAll(){
 	
 }
 
-void *getHead(int req){
+// returns void* pointer to 1st page of current thread
+void* getHead(int req){
 	void *the_head;
 
 	int y;
-	if (req == 1){
+	if (req == THREADREQ){
 		for (y = 1000; y < 2048; y++){
+			// find page that belongs to current thread and is the 1st page
 			if ((page_table[y].tid == current_tid) && (page_table[y].page_num == 1)){
+				// set head to point to 1st byte of that page
 				the_head = (y * PAGE_SIZE) + (char *)all_memory;
 				return the_head; 
 			}
 		}
+		// if such a page is not found
 		for (y = 1000; y < 2048; y++){
+			// find page that is free
 			if (page_table[y].inUse == 0){
+				// set head to point to 1st byte of that page
 				the_head = (y * PAGE_SIZE) + (char *)all_memory;
 				page_table[y].tid = current_tid;
 				page_table[y].page_num = 1;
 				page_table[y].inUse = 1;
+
 				return the_head;
 			}
 		}
 	}
-	else if (req == 2){
+	else if (req == LIBRARYREQ){
+		// set head to point to page 1 (1st byte of OS region)
 		the_head = base_page;
 		return the_head;
 	}
 }
 
-void *requestPage(){
+// returns ptr to a page that is free
+// returns NULL if no pages are free
+void* requestPage(){
 
-	void *new_page;
+	void* new_page;
 	int y;
 
 	for (y = 1000; y < 2048; y++){
+		// if found page that is free
 		if (page_table[y].inUse == 0){
 			page_table[y].inUse = 1;
 			page_table[y].tid = current_tid;
@@ -135,6 +146,18 @@ void *requestPage(){
 		}
 	}
 
+	// if reaches here, no free pages in physical memory
+	// go look in swap file
+	for (y = 2048; y < 6144; y++){
+		// if found page that is free
+		if (page_table[y].inUse == 0){
+			page_table[y].inUse = 1;
+			page_table[y].tid = current_tid;
+			//swap this page in swap file with a page in physical memory
+		}
+	}
+
+	// if reaches here, physical memory and swap file have no free pages
 	return NULL;
 }
 
@@ -164,7 +187,7 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 			break;
 	}
 
-	page_ptr *tmp = &page_table[y];
+	page_meta *tmp = &page_table[y];
 
 	while(sniped_page != tmp->page_num){
 		
@@ -172,7 +195,6 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 			tmp = tmp->next;
 		else
 			tmp = tmp->prev;
-
 	}
 
 	curr_page = tmp;
@@ -218,7 +240,7 @@ void mprotect_setter(int current_tid, int prev_tid){
 
 }
 
-mprotect_setter_dead(int current_tid){
+void mprotect_setter_dead(int current_tid){
 	int i;
 	for(i = 0; i < MEMORY_SIZE / PAGE_SIZE; i += 4096){
 	
@@ -261,19 +283,23 @@ void initMem(int req){
 /* function that take large piece of memory and allocates only the 
 portion needed and creates a Meta component for the rest */
 void organizeMem(Meta * curr, int size){
+
 	curr->is_free = 0;
-	//we need to find the address at which the next Meta compnent will live
-	Meta * new = ((char *)curr + sizeof(Meta) + size);
-	new->size = (curr->size) - size - sizeof(Meta);
-	new->is_free = 1;
 	curr->size = size;
+
+	//we need to find the address at which the next Meta compnent will live
+	Meta * new = (char *)curr + sizeof(Meta) + size;
+	new->size = curr->size - size - sizeof(Meta);
+	new->is_free = 1;
 	new->next = curr->next;
 	new->prev = curr;
+
 	curr->next = new;
 }
 
 void *myallocate(size_t size,int isThread){
 
+	// initialize memory on 1st call
 	if (base_page == NULL){
 		initAll();
 	}
@@ -293,6 +319,7 @@ void *myallocate(size_t size,int isThread){
 	Meta *curr, *prev;				// For Traversal
 	void * memptr;					// Pointer to Return to User
 
+	// get pointer to 1st page of current thread
 	HEAD = (Meta *) getHead(isThread);
 	
 /*
@@ -303,19 +330,19 @@ void *myallocate(size_t size,int isThread){
 		HEAD = base_page;
 	}
 */
+
+	// if 1st page of current thread has no metadata, create metadata
 	if (!(HEAD->size)){
 		initMem(isThread);
 	}
 
 	curr = HEAD;
-	// first traverse and find empty space
+	// first traverse and find empty spacex
 	if (curr->next != NULL){
 		while ((curr != NULL) && (curr->next != NULL)){
 
-			if (curr->is_free == 1){
-				if (curr->size >= size){
-					break;
-				}
+			if (curr->is_free == 1 && curr->size >= size){
+				break;
 			}
 			
 			//iterate through array
@@ -325,35 +352,52 @@ void *myallocate(size_t size,int isThread){
 			}
 		}
 	}
+	// curr now points to either free block of sufficient size or the last block
 
 	if (curr == NULL){
 		fprintf(stderr,"ERROR: unexpected null curr. FILE: %s, LINE %d\n", __FILE__, __LINE__);
 		return NULL;
 	}
 
-	if ((curr->size) == size){
+	// if curr points to free block of sufficient size, but not enough size to chunk off another metadata + free block
+	if (curr->is_free == 1 && curr->size >= size && curr->size <= size + sizeof(Meta)){
 		//initialize Metadata 
 		curr->is_free = 0;
-		curr->size = size;
+		memptr = (char *)curr + sizeof(Meta);
+		return memptr;
+	}
+
+	// if curr points to free block of sufficient size, with enough size to chunk off another metadata + free block
+	if (curr->is_free == 1 && curr->size > size + sizeof(Meta)){
+		organizeMem(curr, size);
 		memptr = (char *)curr + sizeof(Meta);
 		return memptr;
 	}
 	
 	// Last chunk is not free, or not large enough for request
 	if ((curr->is_free == 0) || (curr->size < size)){
+		// get a free page, nextPage points at free page
 		void *nextPage = requestPage();
+		// there are no free pages
 		if (!nextPage){
 			fprintf(stderr,"ERROR: insufficient pages. FILE: %s, LINE %d\n", __FILE__, __LINE__);
 			return NULL;
 		}
 		if (((char *)curr + PAGE_SIZE) < ((char *)all_memory + MEMORY_SIZE)){
 			// Code Mod Function here
-			int currPageEntry = 2048 - ((((char *)all_memory + MEMORY_SIZE) - ((char *)curr)+PAGE_SIZE)/PAGE_SIZE);
-			int newPageEntry = 2048 - ((((char *)all_memory + MEMORY_SIZE) - (char *)nextPage)/PAGE_SIZE);
+
+			// the page number of the page that curr points at
+			int currPageEntry = 2048 - (((char *)all_memory + MEMORY_SIZE - (char *)curr)/PAGE_SIZE);
+			// the page number of the page that nextPage points at
+			int newPageEntry = 2048 - (((char *)all_memory + MEMORY_SIZE - (char *)nextPage)/PAGE_SIZE);
+			// the page number of the page after the one curr points at
 			int nextPageEntry = currPageEntry + 1;
+			// page counter of the page that curr points at
 			int getPageNum = page_table[currPageEntry].page_num;
 			
+			// if the new free page is not directly after the current one
 			if (newPageEntry != nextPageEntry){
+				// if page after current one is not thread's 1st page
 				if (page_table[nextPageEntry].page_num > 1){
 					page_table[nextPageEntry].prev->next = &page_table[newPageEntry];
 				}
@@ -390,13 +434,6 @@ void *myallocate(size_t size,int isThread){
 			organizeMem(curr, size);
 			memptr = (char *)curr + sizeof(Meta);
 		}
-		return memptr;
-	}
-
-	// Sufficient Space Found.
-	else if((curr->size) > (size + sizeof(Meta))){
-		organizeMem(curr, size);
-		memptr = (char *)curr + sizeof(Meta);
 		return memptr;
 	}
 
