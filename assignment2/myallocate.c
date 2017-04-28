@@ -164,17 +164,13 @@ void* requestPage(){
 //A thread requests a page too big for it's current pages to handle. This function assumes there is an empty page in memory to make that request possible but it needs to move the next page  to continue the illusion of contigious memory 
 void swapEmptyPage(void *newPage, void *oldPage){
 
-	// Copy Sniped Page to Buffer
-	memcpy(buffer_page, oldPage, PAGE_SIZE);
+	// copy old page data to new page
+	memcpy(newPage, oldPage, PAGE_SIZE);
 
-	// Evict Page to Sniped Page
-	memset(newPage, 0, PAGE_SIZE);
+	// zero out old page data
+	memset(oldPage, 0, PAGE_SIZE);
 
-	// Copy Buffered Page into Target
-	memcpy(newPage, buffer_page, PAGE_SIZE);
-
-	// Reset Buffer
-	freeBuffer();
+	printf("Case 4\n");
 }	
 
 void swapPage(int sniped_tid, int sniped_page, void *evict){
@@ -212,12 +208,13 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 	freeBuffer();
 }
 
+// zeroes out buffer page
 void freeBuffer(){
 
 	//set all memory in buffer to 0 
 	//pass the address of the buffer, target value, and how long it is 
 
-	memset(&buffer_page, 0, PAGE_SIZE);
+	memset(buffer_page, 0, PAGE_SIZE);
 
 	return 1;
 }
@@ -284,20 +281,19 @@ void initMem(int req){
 portion needed and creates a Meta component for the rest */
 void organizeMem(Meta * curr, int size){
 
-	curr->is_free = 0;
-	curr->size = size;
-
-	//we need to find the address at which the next Meta compnent will live
+	// create next metadata component
 	Meta * new = (char *)curr + sizeof(Meta) + size;
-	new->size = curr->size - size - sizeof(Meta);
+	new->size = curr->size - sizeof(Meta) - size;
 	new->is_free = 1;
 	new->next = curr->next;
 	new->prev = curr;
 
+	curr->is_free = 0;
+	curr->size = size;
 	curr->next = new;
 }
 
-void *myallocate(size_t size,int isThread){
+void *myallocate(size_t size,int req){
 
 	// initialize memory on 1st call
 	if (base_page == NULL){
@@ -320,24 +316,26 @@ void *myallocate(size_t size,int isThread){
 	void * memptr;					// Pointer to Return to User
 
 	// get pointer to 1st page of current thread
-	HEAD = (Meta *) getHead(isThread);
+	HEAD = (Meta *) getHead(req);
 	
 /*
-	if (isThread == 1){
+	if (req == 1){
 		HEAD = user_space;
 	}
-	else if (isThread == 2){
+	else if (req == 2){
 		HEAD = base_page;
 	}
 */
 
 	// if 1st page of current thread has no metadata, create metadata
 	if (!(HEAD->size)){
-		initMem(isThread);
+		initMem(req);
 	}
 
+	// curr points to 1st page of current thread
 	curr = HEAD;
-	// first traverse and find empty spacex
+
+	// first traverse and find empty space
 	if (curr->next != NULL){
 		while ((curr != NULL) && (curr->next != NULL)){
 
@@ -361,79 +359,113 @@ void *myallocate(size_t size,int isThread){
 
 	// if curr points to free block of sufficient size, but not enough size to chunk off another metadata + free block
 	if (curr->is_free == 1 && curr->size >= size && curr->size <= size + sizeof(Meta)){
-		//initialize Metadata 
+
 		curr->is_free = 0;
 		memptr = (char *)curr + sizeof(Meta);
+
+		printf("Case 1\n");
 		return memptr;
 	}
 
 	// if curr points to free block of sufficient size, with enough size to chunk off another metadata + free block
 	if (curr->is_free == 1 && curr->size > size + sizeof(Meta)){
+
 		organizeMem(curr, size);
 		memptr = (char *)curr + sizeof(Meta);
+
+		printf("Case 2\n");
 		return memptr;
 	}
 	
-	// Last chunk is not free, or not large enough for request
+	// Last block is not free, or not large enough for request
 	if ((curr->is_free == 0) || (curr->size < size)){
-		// get a free page, nextPage points at free page
-		void *nextPage = requestPage();
+
+		// get a free page, freePage points at free page
+		void *freePage = requestPage();
+		printf("Case 3\n");
+
 		// there are no free pages
-		if (!nextPage){
+		if (!freePage){
 			fprintf(stderr,"ERROR: insufficient pages. FILE: %s, LINE %d\n", __FILE__, __LINE__);
 			return NULL;
 		}
-		if (((char *)curr + PAGE_SIZE) < ((char *)all_memory + MEMORY_SIZE)){
+
+		// check that curr is not in page 2047 (last page in physical memory)
+		if ((char *)curr + PAGE_SIZE < (char *)all_memory + MEMORY_SIZE){
 			// Code Mod Function here
 
-			// the page number of the page that curr points at
-			int currPageEntry = 2048 - (((char *)all_memory + MEMORY_SIZE - (char *)curr)/PAGE_SIZE);
-			// the page number of the page that nextPage points at
-			int newPageEntry = 2048 - (((char *)all_memory + MEMORY_SIZE - (char *)nextPage)/PAGE_SIZE);
-			// the page number of the page after the one curr points at
-			int nextPageEntry = currPageEntry + 1;
+			// the page number of the page that curr points within
+			int currPageNum = 2048 - ( (all_memory + MEMORY_SIZE - (char *)curr) / PAGE_SIZE );
+			// the page number of the page that freePage points at
+			int freePageNum = 2048 - ( (all_memory + MEMORY_SIZE - (char *)freePage) / PAGE_SIZE );
+			// the page number of the page after the one curr points within
+			int nextPageNum = currPageNum + 1;
 			// page counter of the page that curr points at
-			int getPageNum = page_table[currPageEntry].page_num;
+			int pageCounter = page_table[currPageNum].page_num;
 			
-			// if the new free page is not directly after the current one
-			if (newPageEntry != nextPageEntry){
+			// if the new free page is not the next page (directly after the current one)
+			if (freePageNum != nextPageNum){
+
 				// if page after current one is not thread's 1st page
-				if (page_table[nextPageEntry].page_num > 1){
-					page_table[nextPageEntry].prev->next = &page_table[newPageEntry];
+				if (page_table[nextPageNum].page_num > 1){
+					page_table[nextPageNum].prev->next = &page_table[freePageNum];
 				}
-				page_table[newPageEntry] = page_table[nextPageEntry];
+
+				// set free page metadata equal to next page metadata
+				page_table[freePageNum] = page_table[nextPageNum];
 				
-				page_table[currPageEntry].next = &page_table[nextPageEntry];
-				page_table[nextPageEntry].prev = &page_table[currPageEntry];
-				page_table[nextPageEntry].next = NULL;
-				page_table[nextPageEntry].tid = current_tid;
-				page_table[nextPageEntry].inUse = 1;
-				page_table[nextPageEntry].page_num = getPageNum + 1;
+				// set current/next page metadata to point to each other
+				page_table[currPageNum].next = &page_table[nextPageNum];
+				page_table[nextPageNum].prev = &page_table[currPageNum];
+
+				// set next page metadata
+				page_table[nextPageNum].next = NULL;
+				page_table[nextPageNum].tid = current_tid;
+				page_table[nextPageNum].inUse = 1;
+				page_table[nextPageNum].page_num = pageCounter + 1;
 				
-				swapEmptyPage(nextPage, (char *)curr + sizeof(Meta) + curr->size + 1);
+				// move next page data to free page, then zero out next page data
+				swapEmptyPage( freePage, (void*)(all_memory + nextPageNum * PAGE_SIZE) );
 			}
+			// if the new free page is the next page (directly after the current one)
 			else{
-				page_table[currPageEntry].next = &page_table[nextPageEntry];
-				page_table[nextPageEntry].prev = &page_table[currPageEntry];
-				page_table[nextPageEntry].next = NULL;
-				page_table[nextPageEntry].tid = current_tid;
-				page_table[nextPageEntry].inUse = 1;
-				page_table[nextPageEntry].page_num = getPageNum + 1;
+				// set current/next page metadata to point to each other
+				page_table[currPageNum].next = &page_table[nextPageNum];
+				page_table[nextPageNum].prev = &page_table[currPageNum];
+
+				// set next page metadata
+				page_table[nextPageNum].next = NULL;
+				page_table[nextPageNum].tid = current_tid;
+				page_table[nextPageNum].inUse = 1;
+				page_table[nextPageNum].page_num = pageCounter + 1;
 			}
 		}
+		// curr is in page 2047 (last page in physical memory)
 		else {
 			return NULL;
 		}
-		
+		// if last block is not free
 		if (curr->is_free == 0){
-			organizeMem(nextPage, size);
-			memptr = (char *)nextPage + sizeof(Meta);
+
+			// initialize 1st metadata component for the free page
+			((Meta*)freePage)->next = NULL;
+			((Meta*)freePage)->prev = curr;
+			((Meta*)freePage)->is_free = 1;
+			((Meta*)freePage)->size = PAGE_SIZE-sizeof(Meta);
+
+			organizeMem( (Meta*)freePage, size );
+			memptr = (char *)freePage + sizeof(Meta);
 		}
+		// else if last block is of insufficient size
 		else if (curr->size < size){
+
+			// add free page size to current block size
 			curr->size = curr->size + PAGE_SIZE;
+
 			organizeMem(curr, size);
 			memptr = (char *)curr + sizeof(Meta);
 		}
+
 		return memptr;
 	}
 
@@ -444,15 +476,15 @@ void *myallocate(size_t size,int isThread){
 	}
 }
 
-void mydeallocate(void *ptr, int isThread){
+void mydeallocate(void *ptr, int req){
 
-	HEAD = getHead(isThread);
+	HEAD = getHead(req);
 	int uLimit;
 
-	if (isThread == 1){
+	if (req == 1){
 		uLimit = PAGE_SIZE;
 	}
-	else if (isThread == 2){
+	else if (req == 2){
 		uLimit = OS_SIZE;
 	}
 
