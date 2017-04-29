@@ -60,8 +60,8 @@ void swapEmptyPage(void *newPage, void *oldPage);
 void swapPage(int sniped_tid, int sniped_page, void *evict);
 void freeBuffer();
 void *getHead();
-void mprotect_setter(int current_tid, int prev_tid);
-void mprotect_setter_dead(int current_tid);
+extern void mprotect_setter(int current_tid, int prev_tid);
+extern void mprotect_setter_dead(int current_tid);
 /****************************************************************/
 // myallocate Library
 /****************************************************************/
