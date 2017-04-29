@@ -194,10 +194,12 @@ void* requestPage(){
 	for (y = 1000; y < 2048; y++){
 		// if found page that is free
 		if (page_table[y].inUse == 0){
+
 			page_table[y].inUse = 1;
 			numFreePagesMem--;
 			page_table[y].tid = current_tid;
-			new_page = (y * PAGE_SIZE) + (char *)all_memory;
+
+			new_page = (void*)(all_memory + y * PAGE_SIZE);
 			return new_page; 
 		}
 	}
@@ -207,8 +209,14 @@ void* requestPage(){
 	for (y = 2048; y < 6144; y++){
 		// if found page that is free
 		if (page_table[y].inUse == 0){
+
 			page_table[y].inUse = 1;
+			numFreePagesSF--;
 			page_table[y].tid = current_tid;
+
+			new_page = (void*)(all_memory + y * PAGE_SIZE);
+			return new_page;
+
 			//TODO: swap this page in swap file with a page in physical memory
 		}
 	}
@@ -287,7 +295,7 @@ void mprotect_setter(int current_tid, int prev_tid){
 		}
 
 		else if (page_table[i].tid == current_tid) {
-			mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE);
+			mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
 		}
 	}
 }
@@ -322,10 +330,12 @@ void initMem(int req){
 	HEAD->next = NULL;
 	HEAD->prev = NULL;
 	HEAD->is_free = 1;
-	if (req == 1){
+
+	if (req == THREADREQ){
 		HEAD->size = PAGE_SIZE-sizeof(Meta);
 	}
-	else if (req == 2){
+
+	else if (req == LIBRARYREQ){
 		HEAD->size = OS_SIZE-sizeof(Meta);
 	}
 }
