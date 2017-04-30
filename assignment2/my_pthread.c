@@ -1,530 +1,725 @@
+/****************************************************************/
+// Created by Pranav Katkamwar, Ben De Brasi, Swapneel Chalageri
+// Spring 2017 - CS416
+/****************************************************************/
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <signal.h>
+#include <ucontext.h>
 #include "my_pthread_t.h"
+//#include "myallocate.h"
+#include <time.h>
+/****************************************************************/
+/*
+// Global Variables
+*/
+/****************************************************************/
+static scheduler *calendar;
+static int initialized = 0;
+static int initialized_c = 0;
+static int tid_counter = 1;
+static int lock_counter = 0;
+static int scheduler_call_count = 0;
+struct itimerval alarm_clock;
+struct itimerval stop_clock;
+/****************************************************************/
+/*
+// Running Queue Library
+*/
+/****************************************************************/
+void enqueue(queue *qq, my_pthread_node *thread){
+	if (qq->num_threads == 0){
+		qq->head = thread;
+		qq->tail = thread;
+		qq->num_threads = qq->num_threads + 1;
+	}
+	else if (qq->num_threads == 1){
+		qq->tail = thread;
+		qq->head->next = thread;
+		qq->num_threads = qq->num_threads + 1;
+	}
+	else{
+		qq->tail->next = thread;
+		qq->tail = thread;
+		qq->num_threads = qq->num_threads + 1;
+	}
+}
 
-int threadID = 1;
-int firstCall = 1;
+my_pthread_node *dequeue(queue *qq){
 
+	my_pthread_node *tmp ;
 
-int my_pthread_create(my_pthread_t* thread, pthread_attr_t* attr, void*(*function)(void*), void* arg){
-
-	//1st call to my_pthread_create
-	if(firstCall == 1){
+	if(qq->num_threads == 0){
+		return NULL;
+	}
+	else if (qq->num_threads == 1){
+		tmp = qq->head;
+		tmp->next = NULL;
+		qq->head = NULL;
+		qq->tail = NULL;
+		qq->num_threads = 0;
+		return tmp;
+	}
+	else{
+		tmp = qq->head;
+		qq->head = tmp->next;
+		qq->num_threads = qq->num_threads - 1;
+		tmp->next = NULL;
+		return tmp;
+	}
 	
-		//initialize scheduler
-		scheduler_init();
+}
+/****************************************************************/
+/*
+// Wait Linked List Library
+*/
+/****************************************************************/
+void waitLL_add(wait_node *hi){
+	if (calendar->lock_list->num_locks == 0){
+		calendar->lock_list->head = hi;
+		calendar->lock_list->tail = hi;
+		calendar->lock_list->num_locks = calendar->lock_list->num_locks + 1;
+	}
+	else if (calendar->lock_list->num_locks == 1){
+		calendar->lock_list->tail = hi;
+		calendar->lock_list->head->next = hi;
+		calendar->lock_list->num_locks = calendar->lock_list->num_locks + 1;
+	}
+	else{
+		calendar->lock_list->tail->next = hi;
+		calendar->lock_list->tail = hi;
+		calendar->lock_list->num_locks = calendar->lock_list->num_locks + 1;
+	}
 
-		my_pthread_t* mainThread = (my_pthread_t*)myallocate(sizeof(my_pthread_t), LIBRARYREQ);
+}
+void * waitLL_delete(my_pthread_mutex_t *mutex){
+	int id = mutex->lock_id;
+	wait_node *tmp, *tmp2;
 
-		//set current running thread to main thread
-		myScheduler->currentThread = mainThread;
-
-		//initialize main thread variables
-		mainThread->id = threadID++;
-		mainThread->next = NULL;
-		mainThread->priority = 0;
-		mainThread->state = RUNNING;
-		mainThread->address = mainThread;
-		mainThread->retval = NULL;
-
-		//to integrate with pranav memory
-		current_tid = mainThread->id;
-
-		//set main thread time slice start time and creation start time
-		struct timeval time;
-		gettimeofday(&time, NULL);
-		mainThread->timeStart = (time.tv_sec * 1000000) + time.tv_usec;
-		mainThread->timeLife = (time.tv_sec * 1000000) + time.tv_usec;
-		mainThread->timeRun = 0;
-
-		//initialize ucontext for main thread
-		int check = getcontext(&(mainThread->context));
-		if(check == -1){
-			printf("getcontext error\n");
+	if(calendar->lock_list->num_locks == 0){
+		return NULL;
+	}
+	else if (calendar->lock_list->num_locks == 1){
+		if (calendar->lock_list->head->lock_id == id){
+			calendar->lock_list->head = NULL;
+			calendar->lock_list->tail = NULL;
+			calendar->lock_list->num_locks = 0;
 		}
-		mainThread->context.uc_link = NULL;
-		mainThread->context.uc_stack.ss_sp = myallocate(STACK_SIZE, LIBRARYREQ);
-		mainThread->context.uc_stack.ss_size = STACK_SIZE;
-		mainThread->context.uc_stack.ss_flags = 0;
+		else {
+			printf("ERROR: Lock not found.\n");
+		}
+	}
+	else{
+		tmp2 = calendar->lock_list->head;
+		while ((tmp2->lock_id != id) && (tmp2->next != NULL)){
+			tmp = tmp2;
+			tmp2 = tmp2->next;
+		}
+		if (tmp2->lock_id == id){
+			if (!tmp2->next){
+				mydeallocate(tmp2, LIBRARYREQ);
+				calendar->lock_list->tail = tmp;
+			}
+			else{
+				tmp->next = tmp2->next;
+				mydeallocate(tmp2, LIBRARYREQ);
+			}
+		}
+		else{
+			printf("ERROR: Lock not found.\n");
+		}
+	}
+}
+/****************************************************************/
+/*
+// Scheduler Library
+*/
+/****************************************************************/
+void init_scheduler(){
+	calendar = (scheduler *) myallocate(sizeof(scheduler), LIBRARYREQ);
+	calendar->run_queue = (mlpq *) myallocate(sizeof(mlpq), LIBRARYREQ);
+	calendar->lock_list = (wait_linked_list *) myallocate(sizeof(wait_linked_list), LIBRARYREQ);
+	calendar->lock_list->num_locks = 0;
+	calendar->run_queue->low = (queue *) myallocate(sizeof(queue), LIBRARYREQ);
+	calendar->run_queue->low->num_threads = 0;
+	calendar->run_queue->normal = (queue *) myallocate(sizeof(queue), LIBRARYREQ);
+	calendar->run_queue->normal->num_threads = 0;
+	calendar->run_queue->high = (queue *) myallocate(sizeof(queue), LIBRARYREQ);
+	calendar->run_queue->high->num_threads = 0;
+	calendar->dead_threads = (queue *) myallocate(sizeof(queue), LIBRARYREQ);
+	calendar->main_context = (my_pthread_node *) myallocate(sizeof(my_pthread_node), LIBRARYREQ);
+	calendar->main_context->id = 0;
+	calendar->main_context->next = calendar->main_context;
+	calendar->running_context = (my_pthread_node *) myallocate(sizeof(my_pthread_node), LIBRARYREQ);
+
+	signal(SIGVTALRM, signal_handler);
+
+	initialized = 1;
+}
+
+void maintain(){
+	my_pthread_node *tmp;
+	
+	tmp = dequeue(calendar->run_queue->low);
+	while (tmp != NULL){
+		enqueue(calendar->run_queue->high, tmp);
+		tmp = dequeue(calendar->run_queue->low);
+	}
+}
+
+my_pthread_node *getThread(){
+	my_pthread_node *nextThread;
+		nextThread = dequeue(calendar->run_queue->high);
+		if(nextThread == NULL){
+			nextThread = dequeue(calendar->run_queue->normal);
+		}
+		if(nextThread == NULL){
+			nextThread = dequeue(calendar->run_queue->low);
+		}
+		if (nextThread == NULL){
+			return NULL;
+		}
+			return nextThread;
+}
+
+void reschedule(my_pthread_node *thread){
+	
+	if (thread != NULL){
+		if ((thread->status == YIELD)){
+			if (thread->level == HIGH){
+				enqueue(calendar->run_queue->high, thread);
+			}
+			if (thread->level == NORMAL){
+				enqueue(calendar->run_queue->normal, thread);
+			}
+			if (thread->level == LOW){
+				enqueue(calendar->run_queue->low, thread);
+			}
+		}
+		else if (thread->status == INVERTED){
+			enqueue(calendar->run_queue->high, thread);
+		}
+		else{
+			if (thread->level == HIGH){
+				if ((thread->running_total) >= HIGHRANGE){
+					thread->level = NORMAL;
+					thread->running_total = 0;
+					enqueue(calendar->run_queue->normal, thread);
+				}
+				else{
+					enqueue(calendar->run_queue->high, thread);
+				}
+			}
+			else{
+				if (thread->level == NORMAL){
+					if ((thread->running_total) >= NORMALRANGE){
+						thread->level = LOW;
+						thread->running_total = 0;
+						enqueue(calendar->run_queue->low, thread);
+					}
+					else {
+						thread->level = NORMAL;
+						enqueue(calendar->run_queue->normal, thread);
+					}
+				}
+				else if (thread->level == LOW){
+					enqueue(calendar->run_queue->low, thread);
+				}
+			}	
+		}
+	}
+}
+/****************************************************************/
+void signal_handler(){
+
+	// Reset itimerval
+	alarm_clock.it_value.tv_sec = 0;
+	alarm_clock.it_value.tv_usec = 0;
+	setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+
+	struct timeval thetime;
+	gettimeofday(&thetime, NULL);
+	
+	my_pthread_node *tmp = calendar->running_context;
+	
+	// Check Maintenance Counter
+	scheduler_call_count++;
+	if(scheduler_call_count >= call_count_limit){
+		maintain();
+		scheduler_call_count = 0;
+	}
+
+	// Handle The Running_Context
+	if (tmp->id != NULL){
+		if(tmp->status == YIELD){
+			tmp->stop_time =  (1000000*thetime.tv_sec) + thetime.tv_usec;
+			tmp->running_total += (tmp->stop_time - tmp->start_time);
+			my_pthread_yield();	
+		}
+		else if (tmp->status == RUNNING){
+			tmp->status = READY;
+			tmp->stop_time =  (1000000*thetime.tv_sec) + thetime.tv_usec;
+			tmp->running_total += (tmp->stop_time - tmp->start_time);
+			my_pthread_yield();
+		}
+		else if ((tmp->status == ENDED) || (tmp->status == WAITING)){	
+			calendar->running_context->status = HELP;
+			my_pthread_yield();
+		}
+	}
+	else{
+		my_pthread_yield();
+	}
+
+
+	return;
+}
+/****************************************************************/
+void run_user_thread(my_pthread_node * thread, void *(*function)(void*), void * arg){
+	// Get the current time
+	struct timeval thetime;
+	gettimeofday(&thetime, NULL);
+
+	// Adjust flags / assignments
+	thread->status = RUNNING;
+	calendar->running_context = thread;
+	current_tid = calendar->running_context->id;
+
+	// Timestamp the thread
+	thread->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+	thread->running_total = 0;
+
+	// Run the thread's function
+	thread->retval = function(arg);
+
+	// pthread_exit was not called if it gets here.
+	if (thread->status != ENDED){
+		thread->status = ENDED;
+		calendar->total_threads--;
+
+		calendar->running_context = NULL;
+		my_pthread_yield();
+	}
+}
+/****************************************************************/
+/*
+// my_pthread_t Library
+*/
+/****************************************************************/
+int my_pthread_create(my_pthread_t * thread, my_pthread_attr_t * attr, void *(*function)(void*), void * arg){
+
+	if (initialized != 1){
+		init_scheduler();
+	}
+	
+	// myallocate a new node and assign it to the thread
+	my_pthread_node *new_thread_node = (my_pthread_node *) myallocate(sizeof(my_pthread_node), LIBRARYREQ);
+	thread->node = new_thread_node;
+
+	int errc;
+	errc = getcontext(&(new_thread_node->uctx));
+
+	if (errc == -1){
+		printf("ERROR: unable to getcontext\n");
+	}
+	else{
+		tid_counter++;
+
+		// Set up the thread's stack, ucontext_t
+		thread->node->uctx.uc_stack.ss_sp = myallocate(TSTACK, LIBRARYREQ);
+		thread->node->uctx.uc_stack.ss_size = TSTACK;
+		thread->node->uctx.uc_link = &(calendar->main_context->uctx);
+
+		// Initialize thread's flags/data
+		thread->node->level = HIGH;
+		thread->node->status = NEW;
+		thread->node->id = tid_counter;
+
+		// Make the context and enqueue the thread
+		makecontext(&(thread->node->uctx), run_user_thread, 3, thread->node, function, arg);
+		enqueue(calendar->run_queue->high, thread->node);
+		calendar->total_threads++;
 		
-		//enqueue(mainThread, &(myScheduler->runQueues[mainThread->priority]));
-	}
+		// Set up the main context with a node and initialize it
+		if (initialized_c != 1){
+			my_pthread_node *main_thread_node = (my_pthread_node *) myallocate(sizeof(my_pthread_node), LIBRARYREQ);
+			calendar->main_context = main_thread_node;
+			calendar->main_context->level = HIGH;
+			calendar->main_context->status = RUNNING;
+			calendar->main_context->id = 1;
 
-	//pass void* arg from my_pthread_create to makecontext as int array
-	union Data data;
-	data.arg = arg;
+			calendar->running_context = calendar->main_context;
+			current_tid = calendar->running_context->id;
 
-	//initialize created thread variables
-	thread->id = threadID++;
-	thread->next = NULL;
-	thread->priority = 0;
-	thread->state = QUEUED;
-	thread->address = thread;
-	thread->retval = NULL;
+			// Get Time
+			struct timeval thetime;
+			gettimeofday(&thetime, NULL);
+			calendar->main_context->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
 
-	//set created thread creation start time
-	struct timeval time;
-	gettimeofday(&time, NULL);
-	thread->timeLife = (time.tv_sec * 1000000) + time.tv_usec;
-	thread->timeRun = 0;
+			initialized_c = 1;
+			getcontext(&(calendar->main_context->uctx));
+		}
 
-	//initialize ucontext for created thread
-	int check = getcontext(&(thread->context));
-	if(check == -1){
-		printf("getcontext error\n");
-	}
-	thread->context.uc_link = NULL;
-	thread->context.uc_stack.ss_sp = myallocate(STACK_SIZE, LIBRARYREQ);
-	thread->context.uc_stack.ss_size = STACK_SIZE;
-	thread->context.uc_stack.ss_flags = 0;
-	makecontext(&(thread->context), (void*)function, 1, data.arg);
-
-	//add created thread to run queue
-	enqueue(thread, &(myScheduler->runQueues[thread->priority]));
-
-	//1st call to my_pthread_create
-	if(firstCall == 1){
-
-		firstCall = 0;
-		//start 50ms timer
-		struct itimerval timer;
-		timer.it_value.tv_sec = 0;
-		timer.it_value.tv_usec = 50000;
-		timer.it_interval.tv_sec = 0;
-		timer.it_interval.tv_usec = 0;
-		setitimer(ITIMER_REAL, &timer, NULL);
+		return 0;
 	}
 }
 
 void my_pthread_yield(){
 
-	myScheduler->currentThread->state = YIELD;
-
-	schedule();
-}
-
-void my_pthread_exit(void* value_ptr){
-
-	myScheduler->currentThread->state = EXITED;
-
-	if(value_ptr != NULL){
-		myScheduler->currentThread->retval = value_ptr;
-	}
-
-	schedule();
-}
-
-int my_pthread_join(my_pthread_t thread, void** value_ptr){
-	
-	myScheduler->currentThread->state = JOINING;
-
-	//schedule another thread while the thread being joined has not exited yet
-	while(thread.address->state != EXITED){
-		schedule();
-	}
-	
-	if(value_ptr != NULL){
-		*value_ptr = thread.address->retval;
-	}
-
-	myScheduler->currentThread->state = RUNNING;
-}
-
-//signal handler for timer
-void timer_handler(int signum){
-
-	if(myScheduler->inScheduler == 1){
-		return;
-	}
-
-	schedule();
-}
-
-//inserts thread into queue
-void enqueue(my_pthread_t* thread, queue* q){
-	//queue is empty
-	if(q->rear == NULL){
-		q->front = thread;
-		q->rear = thread;
-	}
-	//queue is not empty
-	else{
-		q->rear->next = thread;
-		q->rear = thread;
-	}
-}
-
-//returns NULL if queue is empty
-my_pthread_t* dequeue(queue* q){
-	//queue is empty
-	if(q->front == NULL){
-		return NULL;
-	}
-	//queue is not empty
-	my_pthread_t* temp = q->front;
-	q->front = q->front->next;
-	temp->next = NULL;
-
-	if(q->front == NULL){
-		q->rear = NULL;
-	}
-
-	return temp;
-}
-
-//gets next thread to be scheduled
-//returns NULL if no threads in run queues
-my_pthread_t* getNextThread(){
-
-	my_pthread_t* ptr;
-
-	int i;
-	for(i=0; i<RUN_QUEUES; i++){
-
-		ptr = dequeue(&(myScheduler->runQueues[i]));
-		if(ptr != NULL){
-			return ptr;
-		}
-	}
-
-	printf("From getNextThread: no more threads in run queues.\n");
-
+	if(calendar == NULL){
+	printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
 	return NULL;
-}
 
-//returns 1 if there is at least 1 thread in run queues
-//returns 0 otherwise
-int checkNextThread(){
-
-	my_pthread_t* ptr;
-
-	int i;
-	for(i=0; i<RUN_QUEUES; i++){
-
-		ptr = (myScheduler->runQueues[i]).front;
-		if(ptr != NULL){
-			return 1;
-		}
 	}
+	// Reset itimerval
+	alarm_clock.it_value.tv_sec = 0;
+	alarm_clock.it_value.tv_usec = 0;
+	setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
 
-	printf("From checkNextThread: no more threads in run queues.\n");
+	// Get Time
+	struct timeval thetime;
+	gettimeofday(&thetime, NULL);
 
-	return 0;
-}
-
-//initializes scheduler
-void scheduler_init(){
-
-	//allocate memory for scheduler and its queues
-	myScheduler = (scheduler*)myallocate(sizeof(scheduler), LIBRARYREQ);
-	myScheduler->runQueues = (queue*)myallocate(RUN_QUEUES * sizeof(queue), LIBRARYREQ);
-
-	//initialize queues
-	int i;
-	for(i=0; i<RUN_QUEUES; i++){
-		myScheduler->runQueues[i].front = NULL;
-		myScheduler->runQueues[i].rear = NULL;
-	}
-
-	//intialize scheduler variables
-	myScheduler->currentThread = NULL;
-	myScheduler->inScheduler = 0;
-	myScheduler->maintenanceCycle = 0;
-
-	//assign signal handler to catch 50 ms timer signal
-	signal(SIGALRM, timer_handler);
-}
-
-//performs maintenance
-void maintenance(){
-
-	my_pthread_t* ptr;
-	my_pthread_t* prev;
-
-	struct timeval time;
-	unsigned long int timeNow;
-
-	int i;
-	//iterate through all lower priority queues
-	for(i=1; i<RUN_QUEUES; i++){
-		
-		ptr = myScheduler->runQueues[i].front;
-		prev = NULL;
-
-		//while ptr points to a thread
-		while(ptr != NULL){
-
-			gettimeofday(&time, NULL);
-			timeNow = (time.tv_sec * 1000000) + time.tv_usec;
-
-			//thread priority should be increased
-			if(timeNow - ptr->timeLife >= LIFETIME_THRESHOLD){
-
-				//remove thread from queue
-				//thread is front
-				if(ptr == myScheduler->runQueues[i].front){
-
-					myScheduler->runQueues[i].front = myScheduler->runQueues[i].front->next;
-
-					if(myScheduler->runQueues[i].front == NULL){
-						myScheduler->runQueues[i].rear = NULL;
-					}
-				}
-				//thread is not front
-				else{
-
-					prev->next = ptr->next;
-
-					if(prev->next == NULL){
-						myScheduler->runQueues[i].rear = prev;
-					}
-				}
-
-				my_pthread_t* temp = ptr;
-
-				//advance ptr before ptr->next is set to NULL
-				ptr=ptr->next;
-
-				//add thread to highest priority queue
-				temp->priority = 0;
-				temp->next = NULL;
-				enqueue(temp, &(myScheduler->runQueues[temp->priority]));
-			}
-
-			if(ptr != NULL){
-				prev = ptr;
-				ptr = ptr->next;
-			}
-		}
-	}
-}
-
-//schedule function
-void schedule(){
-
-	//set signal handler flag
-	myScheduler->inScheduler = 1;
-
-	//maintenance cycle
-	myScheduler->maintenanceCycle++;
-	if(myScheduler->maintenanceCycle >= MAINTENANCE_THRESHOLD){
-		
-		myScheduler->maintenanceCycle = 0;
-		maintenance();
-	}
-
-	//set to no swap
-	myScheduler->swap = 0;
-
-	//get current thread and check if there are any more threads in run queues
-	my_pthread_t* ptr = myScheduler->currentThread;
-	int checkNext = checkNextThread();
-
-	//increment current thread's time run
-	struct timeval time;
-	gettimeofday(&time, NULL);
-	ptr->timeEnd = (time.tv_sec * 1000000) + time.tv_usec;
-	ptr->timeRun += ptr->timeEnd - ptr->timeStart;
-
-	//no other threads in run queues
-	if(checkNext == 0){
-		
-		//if current thread has exited
-		if(ptr->state == EXITED){
-			printf("From scheduler: all threads have finished running.\n");
-			myScheduler->inScheduler = 0;
-			return;
-		}
-
-		//set current thread time slice start time
-		gettimeofday(&time, NULL);
-		ptr->timeStart = (time.tv_sec * 1000000) + time.tv_usec;
-
-		//start 50ms timer
-		struct itimerval timer;
-		timer.it_value.tv_sec = 0;
-		timer.it_value.tv_usec = 50000;
-		timer.it_interval.tv_sec = 0;
-		timer.it_interval.tv_usec = 0;
-		setitimer(ITIMER_REAL, &timer, NULL);
-
-		//set signal handler flag
-		myScheduler->inScheduler = 0;
-
-		return;
-	}
-
-	switch(ptr->state){
-		//should not happen
-		case QUEUED:
-			//printf("Case: QUEUED %d\n", myScheduler->currentThread->id);
-			break;
-		//current thread called yield, requeued at same priority
-		case YIELD:
-			//printf("Case: YIELD %d\n", myScheduler->currentThread->id);
-			ptr->state = QUEUED;
-			ptr->timeRun = 0;
-			enqueue(ptr, &(myScheduler->runQueues[ptr->priority]));
-			myScheduler->swap = 1;
-			break;
-		//current thread called exit
-		case EXITED:
-			//printf("Case: EXITED %d\n", myScheduler->currentThread->id);
-			mydeallocate(ptr->context.uc_stack.ss_sp, LIBRARYREQ);
-			myScheduler->swap = 1;
-			break;
-		//current thread called join
-		case JOINING:
-			//printf("Case: JOINING %d\n", myScheduler->currentThread->id);
-			ptr->state = QUEUED;
-			ptr->timeRun = 0;
-			enqueue(ptr, &(myScheduler->runQueues[ptr->priority]));
-			myScheduler->swap = 1;
-			break;
-		//current thread is blocking for mutex in waiting queue
-		case BLOCKED:
-			//printf("Case: BLOCKED %d\n", myScheduler->currentThread->id);
-			myScheduler->swap = 1;
-			break;			
-		//current thread is running
-		case RUNNING:
-			//printf("Case: RUNNING %d\n", myScheduler->currentThread->id);
-			//check if current thread has run for its entire allotted time slice
-			if(ptr->timeRun >= (ptr->priority + 1) * 50000){
-				ptr->priority++;
-				if(ptr->priority >= RUN_QUEUES){
-					ptr->priority = RUN_QUEUES - 1;
-				}
-				ptr->state = QUEUED;
-				ptr->timeRun = 0;
-				enqueue(ptr, &(myScheduler->runQueues[ptr->priority]));
-				myScheduler->swap = 1;
-			}
-			break;
-	}
-
+	// Variable Declarations
+	my_pthread_node *old_thread, *new_thread;
+	old_thread = calendar->running_context;
 	
-	//current thread should keep running
-	if(myScheduler->swap == 0){
-		
-		//set current thread time slice start time
-		gettimeofday(&time, NULL);
-		ptr->timeStart = (time.tv_sec * 1000000) + time.tv_usec;
+	if (old_thread != NULL){
+		// Old thread exists and is running
+		if (old_thread->status != ENDED){
+			old_thread->status = YIELD;
+			old_thread->stop_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+			old_thread->running_total += (old_thread->stop_time - old_thread->start_time);		
+			new_thread = getThread();
+			reschedule(old_thread);
 
-		//start 50 ms timer
-		struct itimerval timer;
-		timer.it_value.tv_sec = 0;
-		timer.it_value.tv_usec = 50000;
-		timer.it_interval.tv_sec = 0;
-		timer.it_interval.tv_usec = 0;
-		setitimer(ITIMER_REAL, &timer, NULL);
-
-		//set signal handler flag
-		myScheduler->inScheduler = 0;
+			if (new_thread != NULL){
+				alarm_clock.it_value.tv_sec = 0;
+				if (new_thread->level == HIGH){	
+					alarm_clock.it_value.tv_usec = 50000;
+				}
+				else if (new_thread->level == NORMAL){
+					alarm_clock.it_value.tv_usec = 100000;
+				}
+				else if (new_thread->level == LOW){
+					alarm_clock.it_value.tv_usec = 1500000;
+				}
+				new_thread->status = RUNNING;
+				calendar->running_context = new_thread;
+				current_tid = calendar->running_context->id;
+				prev_tid = old_thread->id;
+				mprotect_setter(current_tid, prev_tid);
+				
+				gettimeofday(&thetime, NULL);
+				new_thread->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+				setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+				swapcontext(&(old_thread->uctx), &(new_thread->uctx));
+			}
+			// Just return to main if no other thread exists
+		}
+		// Old thread is marked as ended:
+		else{
+			new_thread = getThread();
+			if (new_thread != NULL){
+				alarm_clock.it_value.tv_sec = 0;
+				if (new_thread->level == HIGH){	
+					alarm_clock.it_value.tv_usec = 50000;
+				}
+				else if(new_thread->level == NORMAL){
+					alarm_clock.it_value.tv_usec = 100000;
+				}
+				else if(new_thread->level == LOW){
+					alarm_clock.it_value.tv_usec = 1500000;
+				}
+				new_thread->status = RUNNING;
+				calendar->running_context = new_thread;
+				current_tid = calendar->running_context->id;
+				mprotect_setter(current_tid, 0);
+				gettimeofday(&thetime, NULL);
+				new_thread->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+				setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+				setcontext(&(new_thread->uctx));
+			}
+		}
 	}
-	//current thread swapped out for next thread
+	// Old thread is marked as NULL
 	else{
+		new_thread = getThread();
+		if (new_thread != NULL){
+			alarm_clock.it_value.tv_sec = 0;
+			if (new_thread->level == HIGH){	
+				alarm_clock.it_value.tv_usec = 50000;
+			}
+			else if(new_thread->level == NORMAL){
+				alarm_clock.it_value.tv_usec = 100000;
+			}
+			else if(new_thread->level == LOW){
+				alarm_clock.it_value.tv_usec = 1500000;
+			}
+			new_thread->status = RUNNING;
+			calendar->running_context = new_thread;
+			current_tid = calendar->running_context->id;
+			gettimeofday(&thetime, NULL);
+			new_thread->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+			
+			prev_tid = old_thread->id;
+			mprotect_setter(current_tid, prev_tid);
 
-		//get next thread
-		myScheduler->currentThread = getNextThread();
+			setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+			swapcontext(&(old_thread->uctx), &(new_thread->uctx));
+		}
+	}
+}
 
-		//set next thread state to RUNNING
-		myScheduler->currentThread->state = RUNNING;
+void my_pthread_exit(void *value_ptr){
 
-		//set next thread time slice start time
-		gettimeofday(&time, NULL);
-		myScheduler->currentThread->timeStart = (time.tv_sec * 1000000) + time.tv_usec;
 
-		//start 50 ms timer
-		struct itimerval timer;
-		timer.it_value.tv_sec = 0;
-		timer.it_value.tv_usec = 50000;
-		timer.it_interval.tv_sec = 0;
-		timer.it_interval.tv_usec = 0;
-		setitimer(ITIMER_REAL, &timer, NULL);
+	if(calendar == NULL){
+		printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
+		return NULL;
 
-		//set signal handler flag
-		myScheduler->inScheduler = 0;
+}	
+	// Reset itimerval
+	alarm_clock.it_value.tv_sec = 0;
+	alarm_clock.it_value.tv_usec = 0;
+	setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+
+	// Get Time
+	struct timeval thetime;
+	gettimeofday(&thetime, NULL);
+
+	// Variable Declarations
+	my_pthread_node *dead_thread, *new_thread;
+
+	dead_thread = calendar->running_context;
+	if (dead_thread != NULL){
+		calendar->total_threads--;
+		dead_thread->status = ENDED;
+		dead_thread->retval = value_ptr;
+		dead_thread->stop_time =  (1000000*thetime.tv_sec) + thetime.tv_usec;
+		dead_thread->running_total += (dead_thread->stop_time - dead_thread->start_time);
+		enqueue(calendar->dead_threads, dead_thread);
+	
 		
-		//to integrate with pranav memory
-		prev_tid = ptr->id;
-		current_tid = myScheduler->currentThread->id;
-		mprotect_setter(current_tid, prev_tid);
+		new_thread = getThread();
+		// Swap contexts
+		if (new_thread != NULL){
+			alarm_clock.it_value.tv_sec = 0;
+			if (new_thread->level == HIGH){
+				alarm_clock.it_value.tv_usec = 50000;
+			}
+			else if (new_thread->level == NORMAL){
+				alarm_clock.it_value.tv_usec = 100000;
+			}
+			else if (new_thread->level == LOW){
+				alarm_clock.it_value.tv_usec = 1500000;
+			}
+			new_thread->status = RUNNING;
+			calendar->running_context = new_thread;
+			current_tid = calendar->running_context->id;
+			gettimeofday(&thetime, NULL);
+			new_thread->start_time = (1000000*thetime.tv_sec) + thetime.tv_usec;
+			prev_tid = dead_thread->id;
+			mprotect_setter(current_tid, prev_tid);
 
-		//swap threads
-		int result = swapcontext(&(ptr->context), &(myScheduler->currentThread->context));
+			
+			setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+			swapcontext(&(dead_thread->uctx), &(new_thread->uctx));
+		}
+		else{
+			calendar->running_context = NULL;
+			my_pthread_yield();
+		}
+
 	}
 
 	return;
 }
 
-int my_pthread_mutex_init(my_pthread_mutex_t* mutex, const pthread_mutexattr_t* mutexattr){
+int my_pthread_join(my_pthread_t thread, void **value_ptr){
 
-	if(mutex == NULL){
-		return -1;
+
+	if(calendar == NULL){
+		printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
+		return NULL;
+
+	}
+	while (thread.node->status != ENDED){
+		my_pthread_yield();		
 	}
 
-	mutex->waitQueue.front = NULL;
-	mutex->waitQueue.rear = NULL;
+	if (value_ptr == NULL){
+		return;
+	}
+	else{
+		thread.retval = thread.node->retval;
+		value_ptr = thread.retval;
+		//free
+		return;
+	}
 
-	mutex->flag = 0;
-
-	return 0;
+	printf("ERROR: Reached end of Join");
+	
+	return;
 }
-
-int my_pthread_mutex_lock(my_pthread_mutex_t* mutex){
-
-	while(__sync_lock_test_and_set(&(mutex->flag), 1) == 1){
-
-		myScheduler->currentThread->state = BLOCKED;
-		enqueue(myScheduler->currentThread, &(mutex->waitQueue));
-		schedule();
+/****************************************************************/
+/*
+// my_pthread_mutex Library
+*/
+/****************************************************************/
+int my_pthread_mutex_init(my_pthread_mutex_t *mutex, my_pthread_mutexattr_t *mutexattr){
+/*
+	if (mutex == NULL){
+		return 1;				// Return 1 if unsuccessful?
 	}
-
-	return 0;
-}
-
-int my_pthread_mutex_unlock(my_pthread_mutex_t* mutex){
-
-	__sync_synchronize();
-	my_pthread_t* ptr;
-
-	if(mutex->waitQueue.front != NULL){
-
-		ptr = dequeue(&(mutex->waitQueue));
-		ptr->state = QUEUED;
-		enqueue(ptr, &(myScheduler->runQueues[ptr->priority]));
-	}
-
-	mutex->flag=0;
-
-	return 0;	
-}
-
-int my_pthread_mutex_destroy(my_pthread_mutex_t* mutex){
-
-	if(mutex == NULL){
-		return -1;
-	}
-
-	if(mutex->flag != 0){
-		return -1;
+*/	
+	if (initialized != 1){
+		init_scheduler();
 	}
 	
-	return 0;
+	lock_counter++;
+	mutex->lock_status = NOT_LOCKED;
+	mutex->lock_id = lock_counter; 
+
+	// Insert New Node into Wait List
+	wait_node *new_wait_node = (wait_node*) myallocate(sizeof(wait_node), LIBRARYREQ);
+	new_wait_node->lock_queue = (queue *) myallocate(sizeof(queue), LIBRARYREQ);
+	new_wait_node->lock_id = mutex->lock_id;
+	mutex->lock_node = new_wait_node;
+	waitLL_add(new_wait_node);
+
+	return 0;					// Return 0 if successful
 }
 
+int my_pthread_mutex_lock(my_pthread_mutex_t *mutex){
 
 
 
+	if(calendar == NULL){
+		printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
+		return NULL;
+
+	}
+
+	if (mutex->lock_status == NOT_LOCKED){
+		mutex->lock_status = LOCKED;
+		mutex->lock_holder = calendar->running_context;
+		//setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+		return 0;				// Return 0 if successful
+	}
+	else{
 
 
+		if((mutex->lock_holder->level) < (calendar->running_context->level)){
+			printf("Priority inversion!\n");
+			mutex->lock_holder->status = INVERTED;
+			mutex->lock_holder->running_total = 0;
+
+			my_pthread_node *tmp;
+			if (mutex->lock_holder->level == LOW){
+				tmp = dequeue(calendar->run_queue->low);
+				while (tmp->id != mutex->lock_holder->id){
+					enqueue(calendar->run_queue->low, tmp);
+					tmp = dequeue(calendar->run_queue->low);
+				}
+			}
+			else if (mutex->lock_holder->level = NORMAL){
+				tmp = dequeue(calendar->run_queue->normal);
+				while (tmp->id != mutex->lock_holder->id){
+					enqueue(calendar->run_queue->normal, tmp);
+					tmp = dequeue(calendar->run_queue->normal);
+				}
+			}
+			else if (mutex->lock_holder->level == HIGH){
+				tmp = dequeue(calendar->run_queue->high);
+				while (tmp->id != mutex->lock_holder->id){
+					enqueue(calendar->run_queue->high, tmp);
+					tmp = dequeue(calendar->run_queue->high);
+				}
+			}
+			
+			if ((tmp != NULL) && (tmp->id == mutex->lock_holder->id)){
+				reschedule(tmp);
+			}
+			else {
+				printf("ERROR: Inversion Acquisition Failed.\n");
+			}
+		}	
 
 
+		// Add thread to wait queue and yield
+		enqueue(mutex->lock_node->lock_queue, calendar->running_context);
+		calendar->running_context->status = WAITING;
+		calendar->running_context = NULL;
+		my_pthread_yield();
+
+		return 0;
+	}
+}
+
+int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex){
+	
+	if(calendar == NULL){
+		printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
+		return NULL;
+
+	}
+	
+	my_pthread_node * tmp;
+
+	if (mutex->lock_status == LOCKED){
+		mutex->lock_status = NOT_LOCKED;
+		tmp = dequeue(mutex->lock_node->lock_queue);
+		if (tmp != NULL){
+			tmp->status = READY;
+			reschedule(tmp);
+		}
+		setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+		return 0;				// Return 0 if successful
+	}
+	else{
+		setitimer(ITIMER_VIRTUAL, &alarm_clock, NULL);
+		return 0;
+	}
+}
+
+int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex){
+
+	if(calendar == NULL){
+		printf("Error! Invalid function call unless pthread_create or mutex_init was called before\n");	
+		return NULL;
+	
+	}
+	
+	if (mutex == NULL){
+		return 1;				// Return 1 if unsuccessful?
+	}
+
+	if(mutex->lock_status == LOCKED	){
+		return 1;
+	}
+	else{
+		waitLL_delete(mutex);
+	}
+	return 0;					// Return 0 if successful
+}
+/****************************************************************/
+/*
+// Testing Purposes
+*/
+/****************************************************************/
 
 
+/****************************************************************/
+/*
+// Pseudocode & Brainstorming
+*/
+/****************************************************************/
+/*
 
-
-
-
-
-
-
+*/

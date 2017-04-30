@@ -3,6 +3,13 @@
 
 void* myThread(void* p){
     	printf("Hello from thread %d\n", *(int*)p);
+
+        char * test = (char *) malloc(10);
+        char * test2 = (char *) malloc(25000);
+        char * test3 = (char *) malloc(5000);
+        char * test4 = (char *) malloc(20000);
+        char * test5 = (char *) malloc(8338860);
+
 	my_pthread_exit(0);
 	return 0;
 }

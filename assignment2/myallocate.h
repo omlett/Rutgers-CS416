@@ -31,6 +31,7 @@ typedef struct Meta{
 } Meta;
 
 typedef struct page_meta_data{
+	int entryNum;
 	int isOsRegion;					// is page in OS region
 	int tid;						// thread id
 	int page_num;					// page counter
@@ -65,9 +66,11 @@ extern void mprotect_setter_dead(int current_tid);
 /****************************************************************/
 // myallocate Library
 /****************************************************************/
-void initMem();
+void initMem(int req, void * newHead);
 void organizeMem(Meta * curr, int size);
 void *myallocate(size_t size, int isThread);
 void mydeallocate(void *ptr, int isThread);
+
+static void handler(int sig, siginfo_t *si, void *unused);
 
 #endif
