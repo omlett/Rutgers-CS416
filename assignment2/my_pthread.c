@@ -447,6 +447,7 @@ void schedule(){
 		//to integrate with pranav memory
 		prev_tid = ptr->id;
 		current_tid = myScheduler->currentThread->id;
+		mprotect_setter(current_tid, prev_tid);
 
 		//swap threads
 		int result = swapcontext(&(ptr->context), &(myScheduler->currentThread->context));

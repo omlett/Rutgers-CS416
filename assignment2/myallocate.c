@@ -104,8 +104,8 @@ void initAll(){
 
 // req is THREADREQ:
 // returns void* pointer to 1st page of current thread
-// if thread does not have any pages yet, see if there is a free page in physical memory
-// if no free pages in physical memory, see if there is a free page in swap file
+// if thread does not have any pages yet, find a free page in physical memory and swap it with the 1st page
+// if no free pages in physical memory, find a free page in swap file and swap it with the 1st page
 // otherwise, return NULL
 // req is LIBRARYREQ:
 // returns void* pointer to OS region
@@ -116,29 +116,115 @@ void* getHead(int req){
 	if (req == THREADREQ){
 		// first see if thread has any pages
 		for (y = 1000; y < 2048; y++){
-			// find page that belongs to current thread and is the 1st page
+			// find page current thread's page 1
 			if ((page_table[y].tid == current_tid) && (page_table[y].page_num == 1)){
-				// set head to point to 1st byte of that page
-				the_head = (y * PAGE_SIZE) + (char *)all_memory;
-				return the_head; 
+
+				// if current thread's page 1 is the 1st page
+				if(y == 1000) {
+
+					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+					return the_head;					
+				}
+
+				// if reaches here, current thread's page 1 is not the 1st page
+				// swap current thread's page 1 with the 1st page
+
+				// if 1st page has a prev page owned by that thread
+				if (page_table[1000].prev != NULL) {
+					// update the prev page's metadata to point to current thread's page 1 (which is where the data in the 1st page is being moved to)
+					page_table[1000].prev->next = &page_table[y];
+				}
+
+				// if 1st page has a next page owned by that thread
+				if (page_table[1000].next != NULL) {
+					// update the next page's metadata to point to current thread's page 1 (which is where the data in the 1st page is being moved to)
+					page_table[1000].next->prev = &page_table[y];
+				}
+
+				// if current thread's page 1 has a prev page owned by that thread
+				if (page_table[y].prev != NULL) {
+					// update the prev page's metadata to point to the 1st page (which is where the data in current thread's page 1 is being moved to)
+					page_table[y].prev->next = &page_table[1000];
+				}
+
+				// if current thread's page 1 has a next page owned by that thread
+				if (page_table[y].next != NULL) {
+					// update the next page's metadata to point to the 1st page (which is where the data in current thread's page 1 is being moved to)
+					page_table[y].next->prev = &page_table[1000];
+				}
+
+				// swap current thread's page 1 metadata with the 1st page metadata
+				page_meta temp = page_table[1000];
+				page_table[1000] = page_table[y];
+				page_table[y] = temp;
+
+				// swap current thread's page 1 data with the 1st page data
+				memcpy( buffer_page, (void*)(all_memory + 1000 * PAGE_SIZE), PAGE_SIZE );
+				memcpy( (void*)(all_memory + 1000 * PAGE_SIZE), (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE );
+				memcpy( (void*)(all_memory + y * PAGE_SIZE), buffer_page, PAGE_SIZE );
+				memset( buffer_page, 0, PAGE_SIZE );
+
+				// set head to point to 1st page
+				the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+				return the_head;
 			}
 		}
 		// if thread does not have any pages yet, see if there is a free page in physical memory
 		for (y = 1000; y < 2048; y++){
 			// find page that is free
 			if (page_table[y].inUse == 0){
-				// set head to point to 1st byte of that page
-				the_head = (y * PAGE_SIZE) + (char *)all_memory;
-				page_table[y].tid = current_tid;
-				page_table[y].page_num = 1;
-				page_table[y].inUse = 1;
-				numFreePagesMem--;
 
+				// if free page is the 1st page
+				if (y == 1000) {
+
+					page_table[1000].prev = NULL;
+					page_table[1000].next = NULL;
+					page_table[1000].tid = current_tid;
+					page_table[1000].inUse = 1;
+					page_table[1000].page_num = 1;
+					numFreePagesSF--;
+
+					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+					return the_head;
+				}
+
+				// if reaches here, free page is not the 1st page
+				// move data in 1st page to free page and update metadata, so 1st page can be given to current thread
+
+				// if 1st page has a prev page owned by that thread
+				if (page_table[1000].prev != NULL) {
+					// update the prev page's metadata to point to free page (which is where the data in 1st page is being moved to)
+					page_table[1000].prev->next = &page_table[y];
+				}
+
+				// if 1st page has a next page owned by that thread
+				if (page_table[1000].next != NULL) {
+					// update the next page's metadata to point to free page (which is where the data in 1st page is being moved to)
+					page_table[1000].next->prev = &page_table[y];
+				}
+
+				// set free page metadata equal to 1st page metadata
+				page_table[y] = page_table[1000];
+				numFreePagesSF--;
+				
+				// set 1st page metadata
+				page_table[1000].prev = NULL;
+				page_table[1000].next = NULL;
+				page_table[1000].tid = current_tid;
+				page_table[1000].inUse = 1;
+				page_table[1000].page_num = 1;
+				
+				// move 1st page data to free page, then zero out 1st page data
+				swapEmptyPage( (void*)(all_memory + y * PAGE_SIZE), (void*)(all_memory + 1000 * PAGE_SIZE) );
+
+				// set head to point to 1st page
+				the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
 				return the_head;
 			}
 		}
 		// if no free pages in physical memory, see if there is a free page in swap file
 		for (y = 2048; y < 6144; y++) {
+			// find page that is free
 			if (page_table[y].inUse == 0) {
 				
 				// move data in 1st page to free page and update metadata, so 1st page can be given to current thread
@@ -152,7 +238,7 @@ void* getHead(int req){
 				// if 1st page has a next page owned by that thread
 				if (page_table[1000].next != NULL) {
 					// update the next page's metadata to point to free page (which is where the data in 1st page is being moved to)
-					page_table[1000].next-> prev = &page_table[y];
+					page_table[1000].next->prev = &page_table[y];
 				}
 
 				// set free page metadata equal to 1st page metadata
@@ -216,8 +302,6 @@ void* requestPage(){
 
 			new_page = (void*)(all_memory + y * PAGE_SIZE);
 			return new_page;
-
-			//TODO: swap this page in swap file with a page in physical memory
 		}
 	}
 
@@ -623,7 +707,9 @@ void *myallocate(size_t size, int req){
 	}
 }
 
+// TODO: implement mydeallocate
 // TODO: update numFreePagesMem counter as needed in mydeallocate
+// TODO: update numFreePagesSF counter as needed in mydeallocate
 void mydeallocate(void *ptr, int req){
 
 	HEAD = getHead(req);
