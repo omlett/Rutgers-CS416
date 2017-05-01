@@ -7,8 +7,8 @@ test: test.o myallocate.o
 	${COMPILE} -o test test.o myallocate.o
 test.o: test.c
 	${COMPILE} -c test.c
-msimple:		msimple.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
-	${COMPILE} -o msimple msimple.c my_pthread.c myallocate.c
+msimple:		msimple.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h paging.c paging.h
+	${COMPILE} -o msimple msimple.c my_pthread.c myallocate.c paging.c
 mcounter:	mcounter.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h
 	${COMPILE} -o mcounter mcounter.c my_pthread.c myallocate.c
 mtsort:		mtsort.c my_pthread.c my_pthread_t.h myallocate.c myallocate.h

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "my_pthread_t.h"
+#include "paging.h"
 
 #define malloc(x) 		myallocate(x, THREADREQ)
 #define free(x)			mydeallocate(x, THREADREQ)
@@ -19,6 +20,10 @@
 #define SWAPFILE_SIZE	1024*1024*16
 #define THREADREQ		1
 #define LIBRARYREQ		2
+#define FIRST_USER_PAGE	1000
+#define FIRST_SWAP_PAGE	2048
+#define MALLOC_FLAG		1
+#define	FREE_FLAG		2
 
 /****************************************************************/
 // Structure Definitions
@@ -30,21 +35,16 @@ typedef struct Meta{
 	struct Meta *next;
 } Meta;
 
-typedef struct page_meta_data{
-	int entryNum;
-	int isOsRegion;					// is page in OS region
-	int tid;						// thread id
-	int page_num;					// page counter
-	int inUse;						// being used
-	struct page_meta_data *next;	// next page owned by thread
-	struct page_meta_data *prev;	// previous page owned by thread
-} page_meta;
+/****************************************************************/
+// Imported Variables
+/****************************************************************/
+int numFreePagesMem;			// counter that tracks the number of free pages in physical memory
+int numFreePagesSF;			// counter that tracks the number of free pages in swap file
 
-/****************************************************************/
-// Extern Variables
-/****************************************************************/
-extern int current_tid;			
-extern int prev_tid;
+char *all_memory;			// pointer to page 0 (1st byte of 8MB physical memory + 16MB swapfile)
+void *base_page;		// pointer to page 1 (1st byte of OS region)
+
+page_meta page_table[6144];	// page table: array of page_meta_data structs
 /****************************************************************/
 // Global Variables
 /****************************************************************/
@@ -54,24 +54,9 @@ char firstOS;
 /****************************************************************/
 // Function Headers
 /****************************************************************/
-// Paging Library
-/****************************************************************/
-void initAll();
-void *requestPage();
-void swapEmptyPage(void *newPage, void *oldPage);
-void swapPage(int sniped_tid, int sniped_page, void *evict);
-void freeBuffer();
-void *getHead(int req, int flag);
-extern void mprotect_setter(int current_tid, int prev_tid);
-extern void mprotect_setter_dead(int current_tid);
-/****************************************************************/
-// myallocate Library
-/****************************************************************/
 void initMem(int req, void * newHead);
 void organizeMem(Meta * curr, int size);
 void *myallocate(size_t size, int isThread);
 void mydeallocate(void *ptr, int isThread);
-
-static void handler(int sig, siginfo_t *si, void *unused);
 
 #endif
