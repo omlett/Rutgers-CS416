@@ -50,14 +50,14 @@ void initAll(){
 	all_memory = (char *) memalign(PAGE_SIZE , (MEMORY_SIZE+SWAPFILE_SIZE) * sizeof(char));			//Creates 8mb physical mem + 16mb swapfile
 	buffer_page = (void *) all_memory;
 	base_page = (char *)all_memory + PAGE_SIZE;
-	user_space = (char *)all_memory + 1000*PAGE_SIZE;
-	swap_file = (char*)all_memory + 2048*PAGE_SIZE;
+	user_space = (char *)all_memory + FIRST_USER_PAGE*PAGE_SIZE;
+	swap_file = (char*)all_memory + FIRST_SWAP_PAGE*PAGE_SIZE;
 
 	int x;
 	
 	// Initialize Page Table
 	// OS region
-	for (x = 1; x < 1000; x++){
+	for (x = 1; x < FIRST_USER_PAGE; x++){
 		page_table[x].entryNum = x;
 		page_table[x].isOsRegion = 1;
 		page_table[x].tid = -69;
@@ -65,7 +65,7 @@ void initAll(){
 		page_table[x].inUse = 0;
 	}
 	// Memory
-	for (x = 1000; x < 2048; x++){
+	for (x = FIRST_USER_PAGE; x < FIRST_SWAP_PAGE; x++){
 		page_table[x].entryNum = x;
 		page_table[x].isOsRegion = 0;
 		page_table[x].tid = -69;
@@ -73,7 +73,7 @@ void initAll(){
 		page_table[x].inUse = 0;
 	}
 	// Swap file
-	for (x = 2048; x < 6144; x++){
+	for (x = FIRST_SWAP_PAGE; x < 6144; x++){
 		page_table[x].entryNum = x;
 		page_table[x].isOsRegion = 0;
 		page_table[x].tid = -69;
@@ -102,7 +102,7 @@ void* requestPage(){
 	void* new_page;
 	int y;
 
-	for (y = 1000; y < 2048; y++){
+	for (y = FIRST_USER_PAGE; y < FIRST_SWAP_PAGE; y++){
 		// if found page that is free
 		if (page_table[y].inUse == 0){
 
@@ -117,7 +117,7 @@ void* requestPage(){
 
 	// if reaches here, no free pages in physical memory
 	// go look in swap file
-	for (y = 2048; y < 6144; y++){
+	for (y = FIRST_SWAP_PAGE; y < 6144; y++){
 		// if found page that is free
 		if (page_table[y].inUse == 0){
 
@@ -153,7 +153,7 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 	int y; 
 	void *curr_page;
 
-	for(y = 1000; y < 2048; y++){
+	for(y = FIRST_USER_PAGE; y < FIRST_SWAP_PAGE; y++){
 		if ((page_table[y].tid == sniped_tid) && (page_table[y].page_num == sniped_page))
 		{
 			curr_page = all_memory + y * PAGE_SIZE;
@@ -206,7 +206,7 @@ void mprotect_setter(int current_tid, int prev_tid){
 
 	//printf("\nmprotect_setter: \n current_tid: %i\n prev_tid: %i\n\n", current_tid, prev_tid);
 	int i;
-	for (i = 1000; i < 2048; i++) {
+	for (i = FIRST_USER_PAGE; i < FIRST_SWAP_PAGE; i++) {
 	
 		if (page_table[i].tid == current_tid){
 			if(mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE) == -1)
@@ -216,21 +216,6 @@ void mprotect_setter(int current_tid, int prev_tid){
 			if(mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_NONE ) == -1)
 				printf("Could not sucessfully protect: %s\n", strerror(errno));
 		}
-	}
-}
-
-
-void mprotect_setter_dead(int current_tid){
-	int i;
-	for(i = 0; i < MEMORY_SIZE / PAGE_SIZE; i += 4096){
-	
-		if(page_table[i].tid ==  NULL)
-			break;
-	
-		if(page_table[i].tid == current_tid)
-			mprotect(&page_table[i] , 4096, PROT_READ | PROT_WRITE);	
-		else
-			mprotect(&page_table[i] , 4096, PROT_NONE);
 	}
 }
 
@@ -251,14 +236,14 @@ void* getHead(int req, int flag){
 	int y;
 	if (req == THREADREQ){
 		// first see if thread has any pages
-		for (y = 1000; y < 2048; y++){
+		for (y = FIRST_USER_PAGE; y < FIRST_SWAP_PAGE; y++){
 			// find page current thread's page 1
 			if ((page_table[y].tid == current_tid) && (page_table[y].page_num == 1)){
 
 				// if current thread's page 1 is the 1st page
-				if(y == 1000) {
+				if(y == FIRST_USER_PAGE) {
 
-					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+					the_head = (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE);
 					return the_head;					
 				}
 
@@ -266,20 +251,20 @@ void* getHead(int req, int flag){
 				// swap current thread's page 1 with the 1st page
 
 				// swap current thread's page 1 metadata with the 1st page metadata
-				page_meta temp = page_table[1000];
-				page_table[1000] = page_table[y];
-				page_table[1000].entryNum = 1000;
+				page_meta temp = page_table[FIRST_USER_PAGE];
+				page_table[FIRST_USER_PAGE] = page_table[y];
+				page_table[FIRST_USER_PAGE].entryNum = FIRST_USER_PAGE;
 				page_table[y] = temp;
 				page_table[y].entryNum = y;
 
 				// swap current thread's page 1 data with the 1st page data
-				memcpy( buffer_page, (void*)(all_memory + 1000 * PAGE_SIZE), PAGE_SIZE );
-				memcpy( (void*)(all_memory + 1000 * PAGE_SIZE), (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE );
+				memcpy( buffer_page, (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE), PAGE_SIZE );
+				memcpy( (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE), (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE );
 				memcpy( (void*)(all_memory + y * PAGE_SIZE), buffer_page, PAGE_SIZE );
 				memset( buffer_page, 0, PAGE_SIZE );
 
 				// set head to point to 1st page
-				the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+				the_head = (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE);
 				return the_head;
 			}
 		}
@@ -290,20 +275,20 @@ void* getHead(int req, int flag){
 		}
 
 		// if thread does not have any pages yet, see if there is a free page in physical memory
-		for (y = 1000; y < 2048; y++){
+		for (y = FIRST_USER_PAGE; y < FIRST_SWAP_PAGE; y++){
 			// find page that is free
 			if (page_table[y].inUse == 0){
 
 				// if free page is the 1st page
-				if (y == 1000) {
+				if (y == FIRST_USER_PAGE) {
 
-					page_table[1000].tid = current_tid;
-					printf("Allocating page 1000 for Thread: %i\n", current_tid);
-					page_table[1000].inUse = 1;
-					page_table[1000].page_num = 0;
+					page_table[FIRST_USER_PAGE].tid = current_tid;
+					printf("Allocating page FIRST_USER_PAGE for Thread: %i\n", current_tid);
+					page_table[FIRST_USER_PAGE].inUse = 1;
+					page_table[FIRST_USER_PAGE].page_num = 0;
 					numFreePagesMem--;
 
-					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+					the_head = (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE);
 					initMem(req, the_head);
 					return the_head;
 				}
@@ -313,52 +298,52 @@ void* getHead(int req, int flag){
 
 
 				// set free page metadata equal to 1st page metadata
-				page_table[y] = page_table[1000];
-				page_table[y].entryNum = 1000;
+				page_table[y] = page_table[FIRST_USER_PAGE];
+				page_table[y].entryNum = FIRST_USER_PAGE;
 				numFreePagesMem--;
 				
 				// set 1st page metadata
-				page_table[1000].tid = current_tid;
-				page_table[1000].inUse = 1;
-				page_table[1000].page_num = 0;
+				page_table[FIRST_USER_PAGE].tid = current_tid;
+				page_table[FIRST_USER_PAGE].inUse = 1;
+				page_table[FIRST_USER_PAGE].page_num = 0;
 				
 				// move 1st page data to free page, then zero out 1st page data
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
-				mprotect( (void*)(all_memory + 1000 * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
-				swapEmptyPage( (void*)(all_memory + y * PAGE_SIZE), (void*)(all_memory + 1000 * PAGE_SIZE) );
+				mprotect( (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
+				swapEmptyPage( (void*)(all_memory + y * PAGE_SIZE), (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE) );
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_NONE );
 
 				// set head to point to 1st page
-				the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+				the_head = (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE);
 				initMem(req, the_head);
 				return the_head;
 			}
 		}
 		// if no free pages in physical memory, see if there is a free page in swap file
-		for (y = 2048; y < 6144; y++) {
+		for (y = FIRST_SWAP_PAGE; y < 6144; y++) {
 			// find page that is free
 			if (page_table[y].inUse == 0) {
 				
 				// move data in 1st page to free page and update metadata, so 1st page can be given to current thread
 
 				// set free page metadata equal to 1st page metadata
-				page_table[y] = page_table[1000];
-				page_table[y].entryNum = 1000;
+				page_table[y] = page_table[FIRST_USER_PAGE];
+				page_table[y].entryNum = FIRST_USER_PAGE;
 				numFreePagesSF--;
 				
 				// set 1st page metadata
-				page_table[1000].tid = current_tid;
-				page_table[1000].inUse = 1;
-				page_table[1000].page_num = 0;
+				page_table[FIRST_USER_PAGE].tid = current_tid;
+				page_table[FIRST_USER_PAGE].inUse = 1;
+				page_table[FIRST_USER_PAGE].page_num = 0;
 				
 				// move 1st page data to free page, then zero out 1st page data
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
-				mprotect( (void*)(all_memory + 1000 * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
-				swapEmptyPage( (void*)(all_memory + y * PAGE_SIZE), (void*)(all_memory + 1000 * PAGE_SIZE) );
+				mprotect( (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
+				swapEmptyPage( (void*)(all_memory + y * PAGE_SIZE), (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE) );
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_NONE );
 
 				// set head to point to 1st page
-				the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
+				the_head = (void*)(all_memory + FIRST_USER_PAGE * PAGE_SIZE);
 				initMem(req, the_head);
 				return the_head;
 			}

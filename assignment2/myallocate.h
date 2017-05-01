@@ -20,8 +20,6 @@
 #define SWAPFILE_SIZE	1024*1024*16
 #define THREADREQ		1
 #define LIBRARYREQ		2
-#define FIRST_USER_PAGE	1000
-#define FIRST_SWAP_PAGE	2048
 #define MALLOC_FLAG		1
 #define	FREE_FLAG		2
 

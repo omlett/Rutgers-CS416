@@ -12,6 +12,11 @@
 #include "my_pthread_t.h"
 #include "myallocate.h"
 
+#define FIRST_USER_PAGE	1000
+#define FIRST_SWAP_PAGE	2048
+#define MALLOC_FLAG		1
+#define	FREE_FLAG		2
+
 /****************************************************************/
 // Extern Variables
 /****************************************************************/
@@ -58,7 +63,6 @@ void swapPage(int sniped_tid, int sniped_page, void *evict);
 void freeBuffer();
 void *getHead(int req, int flag);
 extern void mprotect_setter(int current_tid, int prev_tid);
-extern void mprotect_setter_dead(int current_tid);
 static void handler(int sig, siginfo_t *si, void *unused);
 
 #endif
