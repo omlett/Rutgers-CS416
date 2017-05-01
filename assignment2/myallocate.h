@@ -49,6 +49,7 @@ extern int prev_tid;
 // Global Variables
 /****************************************************************/
 Meta * HEAD;						// pointer to 1st page of current thread
+char firstOS;
 
 /****************************************************************/
 // Function Headers
@@ -60,7 +61,7 @@ void *requestPage();
 void swapEmptyPage(void *newPage, void *oldPage);
 void swapPage(int sniped_tid, int sniped_page, void *evict);
 void freeBuffer();
-void *getHead();
+void *getHead(int req, int flag);
 extern void mprotect_setter(int current_tid, int prev_tid);
 extern void mprotect_setter_dead(int current_tid);
 /****************************************************************/

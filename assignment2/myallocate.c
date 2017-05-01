@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include "myallocate.h"
-
+#include <errno.h>
 
 current_tid = 1;					// initialized to tid of the main thread, updated when main thread swaps to another thread
 int numFreePagesMem = 1048;			// counter that tracks the number of free pages in physical memory
@@ -22,7 +22,7 @@ static void *user_space = NULL;		// pointer to page 1000 (1st byte of user regio
 static void *swap_file = NULL;		// pointer to page 2048 (1st byte of swap file)
 
 static page_meta page_table[6144];	// page table: array of page_meta_data structs
-
+char firstOS = '0';
 
 /****************************************************************/
 /*
@@ -35,11 +35,11 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 	void *swapout;
 	int sniped_tid, sniped_page, page_fault_page;
 
-	page_fault_page = 2048 - ((((char *)all_memory + MEMORY_SIZE) - ((char *)si->si_addr + PAGE_SIZE))/PAGE_SIZE);
+	page_fault_page = (si->si_addr - (void *) all_memory)/PAGE_SIZE;
 	swapout = (char *)all_memory + (page_fault_page*PAGE_SIZE);
 
 	sniped_tid = current_tid;
-	sniped_page = page_table[page_fault_page].page_num;
+	sniped_page = page_fault_page - 1000;
 
 	swapPage(sniped_tid, sniped_page, swapout);
 }
@@ -72,7 +72,7 @@ void initAll(){
 		page_table[x].inUse = 0;
 		page_table[x].next = NULL;
 		page_table[x].prev = NULL;
-	} 
+	}
 	// Memory
 	for (x = 1000; x < 2048; x++){
 		page_table[x].entryNum = x;
@@ -105,7 +105,8 @@ void initAll(){
 	}
 	
 }
-
+// if flag = 1, getHead called from myallocate
+// if flag = 0, getHead called from mydeallocate
 // req is THREADREQ:
 // returns void* pointer to 1st page of current thread
 // if thread does not have any pages yet, find a free page in physical memory and swap it with the 1st page
@@ -113,7 +114,7 @@ void initAll(){
 // otherwise, return NULL
 // req is LIBRARYREQ:
 // returns void* pointer to OS region
-void* getHead(int req){
+void* getHead(int req, int flag){
 	void *the_head;
 
 	
@@ -174,6 +175,12 @@ void* getHead(int req){
 				return the_head;
 			}
 		}
+
+		// if getHead called from mydeallocate, return NULL since thread does not own any pages
+		if (flag == 0) {
+			return NULL;
+		}
+
 		// if thread does not have any pages yet, see if there is a free page in physical memory
 		for (y = 1000; y < 2048; y++){
 			// find page that is free
@@ -185,9 +192,10 @@ void* getHead(int req){
 					page_table[1000].prev = NULL;
 					page_table[1000].next = NULL;
 					page_table[1000].tid = current_tid;
+					printf("Allocating page 1000 for Thread: %i\n", current_tid);
 					page_table[1000].inUse = 1;
 					page_table[1000].page_num = 1;
-					numFreePagesSF--;
+					numFreePagesMem--;
 
 					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
 					initMem(req, the_head);
@@ -211,7 +219,7 @@ void* getHead(int req){
 
 				// set free page metadata equal to 1st page metadata
 				page_table[y] = page_table[1000];
-				numFreePagesSF--;
+				numFreePagesMem--;
 				
 				// set 1st page metadata
 				page_table[1000].prev = NULL;
@@ -278,6 +286,10 @@ void* getHead(int req){
 	else if (req == LIBRARYREQ){
 		// set head to point to page 1 (1st byte of OS region)
 		the_head = base_page;
+		if (firstOS == '0'){
+			initMem(req, the_head);
+			firstOS = '1';
+		}
 		return the_head;
 	}
 
@@ -299,7 +311,7 @@ void* requestPage(){
 			page_table[y].inUse = 1;
 			numFreePagesMem--;
 			page_table[y].tid = current_tid;
-			mprotect_setter(current_tid, 0);
+			mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
 			new_page = (void*)(all_memory + y * PAGE_SIZE);
 			return new_page; 
 		}
@@ -314,7 +326,7 @@ void* requestPage(){
 			page_table[y].inUse = 1;
 			numFreePagesSF--;
 			page_table[y].tid = current_tid;
-
+			mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
 			new_page = (void*)(all_memory + y * PAGE_SIZE);
 			return new_page;
 		}
@@ -335,7 +347,7 @@ void swapEmptyPage(void *newPage, void *oldPage){
 	// zero out old page data
 	memset(oldPage, 0, PAGE_SIZE);
 
-	printf("Case 4\n");
+	//printf("Case 4\n");
 }	
 
 void swapPage(int sniped_tid, int sniped_page, void *evict){
@@ -393,14 +405,17 @@ void freeBuffer(){
 // unprotect all pages belonging to current thread
 void mprotect_setter(int current_tid, int prev_tid){
 
+	//printf("\nmprotect_setter: \n current_tid: %i\n prev_tid: %i\n\n", current_tid, prev_tid);
 	int i;
 	for (i = 1000; i < 2048; i++) {
 	
 		if (page_table[i].tid == current_tid){
-			mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
+			if(mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE) == -1)
+				printf("Could not unprotect: %s \n", strerror(errno));
 		}
 		else {
-			mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_NONE );
+			if(mprotect( (void*)(all_memory + i * PAGE_SIZE), PAGE_SIZE, PROT_NONE ) == -1)
+				printf("Could not sucessfully protect: %s\n", strerror(errno));
 		}
 	}
 }
@@ -431,8 +446,7 @@ void mprotect_setter_dead(int current_tid){
 // Initialize HEAD.
 void initMem(int req, void * newHead){
 
-	//raise(SIGSEGV);
-	mprotect_setter(current_tid, 0);
+	mprotect( (newHead), PAGE_SIZE, PROT_READ | PROT_WRITE );
 
 	HEAD = (Meta *) newHead;
 	
@@ -470,6 +484,7 @@ void organizeMem(Meta * curr, int size){
 
 void *myallocate(size_t size, int req){
 
+	printf("\nIn myallocate.\n req is %i\n", req);
 	// initialize memory on 1st call
 	if (base_page == NULL){
 		initAll();
@@ -491,7 +506,7 @@ void *myallocate(size_t size, int req){
 	void * memptr;					// Pointer to Return to User
 
 	// get pointer to 1st page of current thread
-	HEAD = (Meta *) getHead(req);
+	HEAD = (Meta *) getHead(req, 1);
 
 	// if thread does not own any pages any there are no free pages left in physical memory and swap file
 	if (HEAD == NULL) {
@@ -507,11 +522,6 @@ void *myallocate(size_t size, int req){
 		HEAD = base_page;
 	}
 */
-
-	// if 1st page of current thread has no metadata, create metadata
-	if (!(HEAD->size)){
-		//initMem(req);
-	}
 
 	// curr points to 1st page of current thread
 	curr = HEAD;
@@ -536,22 +546,22 @@ void *myallocate(size_t size, int req){
 	}
 
 	// if curr points to free block of sufficient size, but not enough size to chunk off another metadata + free block
-	if (curr->is_free == 1 && curr->size == size){
+	if (curr->is_free == 1 && curr->size >= size && curr->size <= size + sizeof(Meta)){
 
 		curr->is_free = 0;
 		memptr = (char *)curr + sizeof(Meta);
 
-		printf("Case 1\n");
+		//printf("Case 1\n");
 		return memptr;
 	}
 
 	// if curr points to free block of sufficient size, with enough size to chunk off another metadata + free block
-	if (curr->is_free == 1 && curr->size > size + sizeof(Meta)){
+	if (curr->is_free == 1 && curr->size >= (size + sizeof(Meta))){
 
 		organizeMem(curr, size);
 		memptr = (char *)curr + sizeof(Meta);
 
-		printf("Case 2\n");
+		//printf("Case 2\n");
 		return memptr;
 	}
 	
@@ -560,7 +570,7 @@ void *myallocate(size_t size, int req){
 	// if last block is not free
 	if (curr->is_free == 0) {
 		// if not enough memory left to allocate size + new metadata
-		if(size + sizeof(Meta) > numFreePagesMem * PAGE_SIZE) {
+		if(size + sizeof(Meta) > numFreePagesMem * PAGE_SIZE && size + sizeof(Meta) > numFreePagesSF * PAGE_SIZE) {
 			fprintf(stderr,"ERROR: insufficient memory. FILE: %s, LINE %d\n", __FILE__, __LINE__);
 			return NULL;
 		}
@@ -569,7 +579,7 @@ void *myallocate(size_t size, int req){
 	// if last block is not large enough for request
 	if (curr->size < size) {
 		// if not enough memory left to allocate size
-		if(size > curr->size + numFreePagesMem * PAGE_SIZE) {
+		if(size > curr->size + numFreePagesMem * PAGE_SIZE && size > curr->size + numFreePagesSF * PAGE_SIZE) {
 			fprintf(stderr,"ERROR: insufficient memory. FILE: %s, LINE %d\n", __FILE__, __LINE__);
 			return NULL;
 		}
@@ -598,7 +608,7 @@ void *myallocate(size_t size, int req){
 
 			// get a free page, freePage points at free page
 			void *freePage = requestPage();
-			printf("Case 3\n");
+			//printf("Case 3\n");
 
 			// there are no free pages
 			if (!freePage){
@@ -607,9 +617,9 @@ void *myallocate(size_t size, int req){
 			}
 
 			// the page number of the page that curr points within
-			int currPageNum = 2048 - ( (all_memory + MEMORY_SIZE - (char *)curr) / PAGE_SIZE );
+			int currPageNum = ((void *)curr - (void *)all_memory)/PAGE_SIZE;
 			// the page number of the page that freePage points at
-			int freePageNum = 2048 - ( (all_memory + MEMORY_SIZE - (char *)freePage) / PAGE_SIZE );
+			int freePageNum = ((void *)freePage - (void *)all_memory)/PAGE_SIZE;
 			// the page number of the next needed page
 			// if current thread needs 5 pages to satsify request: curr+1 is next needed page, then curr+2 is next needed page, ..., curr+5 is next needed page
 			int nextPageNum = currPageNum + numPagesNeeded;
@@ -656,6 +666,7 @@ void *myallocate(size_t size, int req){
 			// if the new free page is the next needed page (directly after: the current page or the last needed page)
 			else{
 				// set current/next page metadata to point to each other
+
 				page_table[nextPageNum - 1].next = &page_table[nextPageNum];
 				page_table[nextPageNum].prev = &page_table[nextPageNum - 1];
 
@@ -664,6 +675,9 @@ void *myallocate(size_t size, int req){
 				page_table[nextPageNum].tid = current_tid;
 				page_table[nextPageNum].inUse = 1;
 				page_table[nextPageNum].page_num = pageCounter + 1;
+
+
+				mprotect( (void*)(all_memory + nextPageNum * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
 			}
 			// now the next needed page belongs to the current thread
 
@@ -741,7 +755,12 @@ void *myallocate(size_t size, int req){
 // TODO: update numFreePagesSF counter as needed in mydeallocate
 void mydeallocate(void *ptr, int req){
 
-	HEAD = getHead(req);
+	HEAD = getHead(req, 0);
+	if(HEAD == NULL) {
+		fprintf(stderr,"ERROR: thread does not have any malloc'd memory. FILE: %s, LINE %d\n", __FILE__, __LINE__);
+		return;
+	}
+
 	int uLimit;
 
 	if (req == 1){
