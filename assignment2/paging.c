@@ -19,7 +19,7 @@
 /****************************************************************/
 
 static void handler(int sig, siginfo_t *si, void *unused) {
-	//printf("Handler\n");
+	printf("Handler\n");
 	void *swapout;
 	int sniped_tid, sniped_page, page_fault_page;
 
@@ -31,6 +31,7 @@ static void handler(int sig, siginfo_t *si, void *unused) {
 
 	mprotect( (void*)(all_memory + page_fault_page*FIRST_USER_PAGE), PAGE_SIZE, PROT_READ | PROT_WRITE );
 	swapPage(sniped_tid, sniped_page, swapout);
+	return;
 }
 
 /****************************************************************/
@@ -296,7 +297,7 @@ void* getHead(int req, int flag){
 					page_table[1000].tid = current_tid;
 					printf("Allocating page 1000 for Thread: %i\n", current_tid);
 					page_table[1000].inUse = 1;
-					page_table[1000].page_num = 1;
+					page_table[1000].page_num = 0;
 					numFreePagesMem--;
 
 					the_head = (void*)(all_memory + 1000 * PAGE_SIZE);
@@ -316,7 +317,7 @@ void* getHead(int req, int flag){
 				// set 1st page metadata
 				page_table[1000].tid = current_tid;
 				page_table[1000].inUse = 1;
-				page_table[1000].page_num = 1;
+				page_table[1000].page_num = 0;
 				
 				// move 1st page data to free page, then zero out 1st page data
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
@@ -345,7 +346,7 @@ void* getHead(int req, int flag){
 				// set 1st page metadata
 				page_table[1000].tid = current_tid;
 				page_table[1000].inUse = 1;
-				page_table[1000].page_num = 1;
+				page_table[1000].page_num = 0;
 				
 				// move 1st page data to free page, then zero out 1st page data
 				mprotect( (void*)(all_memory + y * PAGE_SIZE), PAGE_SIZE, PROT_READ | PROT_WRITE );
