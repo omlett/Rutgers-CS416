@@ -162,6 +162,9 @@ void swapPage(int sniped_tid, int sniped_page, void *evict){
 			mprotect( (void*)(buffer_page), PAGE_SIZE, PROT_READ | PROT_WRITE );
 			mprotect( (void*)(evict), PAGE_SIZE, PROT_READ | PROT_WRITE );
 
+			printf("\ncurr_page: %p\nevict_page: %p\npage_table[y].tid: %i\nsniped_tid: %i\n page_table[y].page_num: %i\nsniped_page: %i\ny: %i\n\n", curr_page, evict, page_table[y].tid, sniped_tid, page_table[y].page_num, sniped_page, y);
+
+
 			// Copy Sniped Page to Buffer
 			memcpy(buffer_page, curr_page, PAGE_SIZE);
 

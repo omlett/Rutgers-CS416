@@ -65,7 +65,7 @@ void organizeMem(Meta * curr, int size){
 
 void *myallocate(size_t size, int req){
 
-	printf("\nIn myallocate.\n req is %i\n", req);
+	//printf("\nIn myallocate.\n req is %i\n", req);
 	// initialize memory on 1st call
 	if (base_page == NULL){
 		initAll();
